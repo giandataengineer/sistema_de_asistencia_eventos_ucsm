@@ -115,7 +115,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     async (file: File) => {
       setScanning(true);
       try {
-        const scanner = new Html5Qrcode(containerIdRef.current);
+        const scanner = new Html5Qrcode(containerIdRef.current, {
+          formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE ],
+          useBarCodeDetectorIfSupported: true,
+          verbose: false,
+        });
         const decodedText = await scanner.scanFile(file, false);
         processRawData(decodedText);
       } catch (err) {
