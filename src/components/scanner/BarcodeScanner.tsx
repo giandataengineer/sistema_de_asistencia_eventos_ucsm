@@ -86,9 +86,11 @@ export default function BarcodeScanner({
                 />
                 <button
                   className="w-full py-3 rounded-xl font-bold text-accent border-2 border-accent
+                    flex items-center justify-center gap-2
                     hover:bg-accent/10 transition-all"
                 >
-                  📸 Tomar Foto (Recomendado)
+                  <Camera className="w-5 h-5" />
+                  Tomar Foto (Recomendado)
                 </button>
               </div>
             </div>

@@ -78,7 +78,7 @@ export function useScanner(options: UseScannerOptions = {}) {
 
     try {
       await scanner.start(
-        { facingMode: "environment" },
+        { facingMode: { exact: "environment" } },
         {
           // Bajamos un poco los FPS a 10. PDF417 requiere mucho CPU para procesar. 
           // Si le exigimos muchos FPS, el celular salta frames y nunca lo lee.
