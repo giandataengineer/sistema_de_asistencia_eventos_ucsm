@@ -33,6 +33,8 @@ export default function RegistroPage() {
   const [continuousMode, setContinuousMode] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successName, setSuccessName] = useState("");
 
   const { data, fetchAsistencias, registrar, eliminar } = useAsistencias({
     eventoId: usuario?.eventoId ?? "",
@@ -54,6 +56,9 @@ export default function RegistroPage() {
 
       if (result.success) {
         toast.success(`${datos.apellidoPaterno} ${datos.nombres} registrado`, { duration: 2000 });
+        setSuccessName(`${datos.nombres} ${datos.apellidoPaterno}`);
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 1500);
         fetchAsistencias(1);
       } else if (result.duplicado) {
         toast.warning(result.error, { duration: 3000 });
@@ -76,6 +81,9 @@ export default function RegistroPage() {
 
       if (result.success) {
         toast.success(`${form.apellidoPaterno} ${form.nombres} registrado`);
+        setSuccessName(`${form.nombres} ${form.apellidoPaterno}`);
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 1500);
         fetchAsistencias(1);
       } else if (result.duplicado) {
         toast.warning(result.error);
@@ -172,6 +180,20 @@ export default function RegistroPage() {
         <BarcodeScanner onScan={handleScan} onError={(err) => toast.error(err)} onClose={() => setShowScanner(false)} continuousMode={continuousMode} />
       )}
       {deleteTarget && <DeleteModal nombre={deleteTarget.nombre} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />}
+      
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-accent/20 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-primary/90 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-50 duration-300 border border-accent/30">
+            <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center animate-bounce shadow-[0_0_40px_rgba(0,230,118,0.6)]">
+              <span className="text-primary text-5xl font-black">✓</span>
+            </div>
+            <h2 className="text-4xl font-black text-accent tracking-wider uppercase drop-shadow-md">¡Registrado!</h2>
+            {successName && (
+              <p className="text-white text-xl font-medium mt-2">{successName}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
