@@ -74,12 +74,15 @@ export default function BarcodeScanner({
           <>
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <div
-                className="w-[320px] h-[160px] border-2 border-accent rounded-lg
-                  shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"
+                className="relative w-[340px] h-[180px] border-2 border-accent/80 rounded-lg
+                  shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] overflow-hidden"
               >
+                {/* Linea roja del escaner animada */}
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_3px_rgba(239,68,68,0.8)] animate-scan-line" />
+
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap
                   bg-accent/90 text-primary-deep text-xs font-bold px-3 py-1 rounded-full">
-                  Enfoque el codigo de barras aqui
+                  Enfoque el codigo DNI dentro del recuadro
                 </div>
               </div>
             </div>

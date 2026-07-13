@@ -53,6 +53,16 @@ body {
   animation: float 3s ease-in-out infinite;
 }
 
+@keyframes scanLine {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(160px); }
+  100% { transform: translateY(0); }
+}
+
+.animate-scan-line {
+  animation: scanLine 2s linear infinite;
+}
+
 @keyframes shine {
   to { background-position: 200% center; }
 }
