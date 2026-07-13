@@ -77,20 +77,22 @@ export function useScanner(options: UseScannerOptions = {}) {
 
     try {
       await scanner.start(
-        { facingMode: "environment" }, // Preferir cámara trasera
+        { facingMode: "environment" },
         {
-          fps: 15,
-          // Para PDF417 (DNI) NECESITAMOS alta resolución porque los puntos son diminutos
+          // Bajamos un poco los FPS a 10. PDF417 requiere mucho CPU para procesar. 
+          // Si le exigimos muchos FPS, el celular salta frames y nunca lo lee.
+          fps: 10,
           videoConstraints: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            advanced: [{ focusMode: "continuous" }] as any,
+            // Forzamos la resolución al máximo posible (4K si el celular lo soporta, o su máximo)
+            width: { ideal: 3840, min: 1920 },
+            height: { ideal: 2160, min: 1080 },
+            // Forzamos enfoque continuo y un ligero zoom (si el hardware lo permite) 
+            // porque el PDF417 necesita verse GRANDE en la pantalla.
+            advanced: [{ focusMode: "continuous", zoom: 1.5 }] as any,
           },
-          // Quitamos el qrbox o lo hacemos más ancho porque el PDF417 es muy largo horizontalmente
-          // Si limitamos el qrbox, el código se corta y nunca lee.
         },
         (decodedText) => processRawData(decodedText),
-        () => {} // Silenciar errores de frames sin codigo detectado
+        () => {} 
       );
     } catch (err) {
       setScanning(false);
