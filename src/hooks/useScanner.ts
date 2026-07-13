@@ -15,8 +15,9 @@ interface UseScannerOptions {
 export function useScanner(options: UseScannerOptions = {}) {
   const [scanning, setScanning] = useState(false);
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const containerIdRef = useRef("scanner-container");
+  const containerIdRef = useRef(`scanner-${Math.random().toString(36).substring(2, 9)}`);
   const lastScannedRef = useRef<string>("");
 
   const stopScanner = useCallback(async () => {

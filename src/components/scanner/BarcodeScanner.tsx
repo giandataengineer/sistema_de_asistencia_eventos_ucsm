@@ -60,7 +60,7 @@ export default function BarcodeScanner({
             
             <div className="flex flex-col gap-4 w-full px-8">
               <button
-                onClick={startScanner}
+                onClick={() => startScanner()}
                 className="w-full py-3 rounded-xl font-bold text-primary-deep
                   bg-gradient-to-r from-accent-dim to-accent
                   hover:shadow-[0_8px_24px_rgba(0,230,118,0.35)]
