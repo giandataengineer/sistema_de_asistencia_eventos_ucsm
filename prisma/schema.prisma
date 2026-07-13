@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Usuario {
+  id           String        @id @default(uuid())
+  username     String        @unique @db.VarChar(50)
+  passwordHash String        @map("password_hash") @db.VarChar(255)
+  nombre       String        @db.VarChar(100)
+  eventoId     String        @map("evento_id")
+  activo       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  evento       Evento        @relation(fields: [eventoId], references: [id])
+  asistencias  Asistencia[]
+
+  @@index([eventoId])
+  @@map("usuarios")
+}
+
+model Evento {
+
+  id          String       @id @default(uuid())
+  nombre      String       @db.VarChar(200)
+  descripcion String?      @db.Text
+  fechaInicio DateTime     @map("fecha_inicio") @db.Date
+  fechaFin    DateTime?    @map("fecha_fin") @db.Date
+  lugar       String?      @db.VarChar(200)
+  activo      Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  usuarios    Usuario[]
+  asistencias Asistencia[]
+
+  @@map("eventos")
+}
+
+model Asistencia {
+  id              String    @id @default(uuid())
+  numeroDni       String    @map("numero_dni") @db.VarChar(8)
+  apellidoPaterno String    @map("apellido_paterno") @db.VarChar(100)
+  apellidoMaterno String?   @map("apellido_materno") @db.VarChar(100)
+  nombres         String    @db.VarChar(150)
+  tipoDni         String    @map("tipo_dni") @db.VarChar(15)
+  eventoId        String    @map("evento_id")
+  registradoPor   String    @map("registrado_por")
+  fechaRegistro   DateTime  @default(now()) @map("fecha_registro")
+  eliminado       Boolean   @default(false)
+  eliminadoAt     DateTime? @map("eliminado_at")
+
+  evento   Evento  @relation(fields: [eventoId], references: [id])
+  registrador Usuario @relation(fields: [registradoPor], references: [id])
+
+  @@unique([numeroDni, eventoId])
+  @@index([eventoId])
+  @@index([numeroDni])
+  @@index([fechaRegistro(sort: Desc)])
+  @@index([eliminado])
+  @@map("asistencias")
+}

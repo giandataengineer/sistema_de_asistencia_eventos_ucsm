@@ -3,6 +3,8 @@ export interface Usuario {
   username: string;
   nombre: string;
   activo: boolean;
+  eventoId: string;
+  eventoNombre: string;
 }
 
 export interface LoginRequest {
@@ -14,6 +16,7 @@ export interface JWTPayload {
   sub: string;
   username: string;
   nombre: string;
+  eventoId: string;
   iat: number;
   exp: number;
 }
