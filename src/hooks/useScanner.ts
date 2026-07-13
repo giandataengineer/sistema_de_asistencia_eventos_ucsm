@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { parsePDF417 } from "@/lib/pdf417-parser";
 import type { DatosDNI, ScanResult } from "@/interfaces/dni.interface";
+import { playBeep } from "@/lib/utils";
 
 interface UseScannerOptions {
   onScanSuccess?: (datos: DatosDNI) => void;
@@ -42,6 +43,8 @@ export function useScanner(options: UseScannerOptions = {}) {
       if (result.success && result.data) {
         // Vibracion haptica al detectar
         if (navigator.vibrate) navigator.vibrate(200);
+        // Sonido de "Pip" como escáner real
+        playBeep();
 
         options.onScanSuccess?.(result.data);
 
@@ -64,7 +67,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     lastScannedRef.current = "";
     setLastResult(null);
 
-    const scanner = new Html5Qrcode(containerIdRef.current);
+    // Configuramos explícitamente el soporte para PDF417 (DNI)
+    const scanner = new Html5Qrcode(containerIdRef.current, {
+      formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE ],
+      useBarCodeDetectorIfSupported: true, // Usa API nativa si está disponible (mucho más rápido)
+    });
     scannerRef.current = scanner;
     setScanning(true);
 

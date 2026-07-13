@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { parsePDF417 } from "@/lib/pdf417-parser";
 import type { DatosDNI } from "@/interfaces/dni.interface";
 import { ScanBarcode, Loader2 } from "lucide-react";
+import { playBeep } from "@/lib/utils";
 
 interface ExternalScannerProps {
   onScan: (datos: DatosDNI) => void;
@@ -26,6 +27,7 @@ export default function ExternalScanner({
 
       if (result.success && result.data) {
         if (navigator.vibrate) navigator.vibrate(200);
+        playBeep();
         onScan(result.data);
       } else {
         onError(result.error || "No se pudo leer el codigo");
