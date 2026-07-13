@@ -71,6 +71,7 @@ export function useScanner(options: UseScannerOptions = {}) {
     const scanner = new Html5Qrcode(containerIdRef.current, {
       formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE ],
       useBarCodeDetectorIfSupported: true, // Usa API nativa si está disponible (mucho más rápido)
+      verbose: false, // Requerido por TypeScript
     });
     scannerRef.current = scanner;
     setScanning(true);
