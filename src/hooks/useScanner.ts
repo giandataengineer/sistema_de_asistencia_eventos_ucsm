@@ -63,9 +63,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     [options, stopScanner]
   );
 
-  const startScanner = useCallback(async () => {
+  const startScanner = useCallback(async (forcedFacingMode?: "environment" | "user") => {
     lastScannedRef.current = "";
     setLastResult(null);
+
+    const modeToUse = forcedFacingMode || facingMode;
 
     // Configuramos explícitamente el soporte para PDF417 (DNI)
     const scanner = new Html5Qrcode(containerIdRef.current, {
@@ -78,12 +80,13 @@ export function useScanner(options: UseScannerOptions = {}) {
 
     try {
       await scanner.start(
-        { facingMode: "environment" },
+        { facingMode: modeToUse },
         {
           fps: 10,
           videoConstraints: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 3840, min: 1920 },
+            height: { ideal: 2160, min: 1080 },
+            advanced: [{ focusMode: "continuous", zoom: 1.5 }] as any,
           },
         },
         (decodedText) => processRawData(decodedText),
@@ -91,19 +94,35 @@ export function useScanner(options: UseScannerOptions = {}) {
       );
     } catch (err) {
       setScanning(false);
-      const message =
-        err instanceof Error ? err.message : "No se pudo acceder a la camara";
-      options.onScanError?.(message);
+      // Fallback: If advanced constraints failed, try again without advanced constraints
+      try {
+        await scanner.start(
+          { facingMode: modeToUse },
+          { fps: 10, videoConstraints: { width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          (decodedText) => processRawData(decodedText),
+          () => {} 
+        );
+        setScanning(true);
+      } catch (fallbackErr) {
+        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la cámara";
+        options.onScanError?.(message);
+      }
     }
-  }, [processRawData, options]);
+  }, [facingMode, options, processRawData]);
+
+  const toggleCamera = useCallback(async () => {
+    const newMode = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(newMode);
+    await stopScanner();
+    // Restart scanner with new mode
+    setTimeout(() => startScanner(newMode), 300);
+  }, [facingMode, stopScanner, startScanner]);
 
   useEffect(() => {
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
+      stopScanner();
     };
-  }, []);
+  }, [stopScanner]);
 
   const scanImageFile = useCallback(
     async (file: File) => {
@@ -132,6 +151,8 @@ export function useScanner(options: UseScannerOptions = {}) {
     stopScanner,
     processRawData,
     scanImageFile,
+    toggleCamera,
+    facingMode,
     containerId: containerIdRef.current,
   };
 }

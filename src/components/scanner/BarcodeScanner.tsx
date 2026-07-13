@@ -2,7 +2,7 @@
 
 import { useScanner } from "@/hooks/useScanner";
 import type { DatosDNI } from "@/interfaces/dni.interface";
-import { X, Camera, Loader2 } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw } from "lucide-react";
 
 interface BarcodeScannerProps {
   onScan: (datos: DatosDNI) => void;
@@ -17,7 +17,7 @@ export default function BarcodeScanner({
   onClose,
   continuousMode = false,
 }: BarcodeScannerProps) {
-  const { scanning, startScanner, stopScanner, scanImageFile, containerId } = useScanner({
+  const { scanning, startScanner, stopScanner, scanImageFile, toggleCamera, containerId } = useScanner({
     onScanSuccess: onScan,
     onScanError: onError,
     continuousMode,
@@ -99,6 +99,15 @@ export default function BarcodeScanner({
 
         {scanning && (
           <>
+            <div className="absolute top-4 right-4 z-50">
+              <button
+                onClick={toggleCamera}
+                className="p-3 bg-black/50 text-white rounded-full backdrop-blur-sm border border-white/20 hover:bg-black/70 transition-colors"
+                title="Cambiar Cámara"
+              >
+                <RefreshCw className="w-6 h-6" />
+              </button>
+            </div>
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <div
                 className="relative w-[340px] h-[180px] border-2 border-accent/80 rounded-lg
