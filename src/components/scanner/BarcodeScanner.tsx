@@ -57,7 +57,6 @@ export default function BarcodeScanner({
                 frente a la camara
               </p>
             </div>
-            </div>
             
             <div className="flex flex-col gap-4 w-full px-8">
               <button
