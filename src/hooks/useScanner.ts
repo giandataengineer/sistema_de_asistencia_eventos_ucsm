@@ -110,12 +110,29 @@ export function useScanner(options: UseScannerOptions = {}) {
     };
   }, []);
 
+  const scanImageFile = useCallback(
+    async (file: File) => {
+      setScanning(true);
+      try {
+        const scanner = new Html5Qrcode(containerIdRef.current);
+        const decodedText = await scanner.scanFile(file, false);
+        processRawData(decodedText);
+      } catch (err) {
+        options.onScanError?.("No se encontró ningún código de barras en la foto. Intente con otra.");
+      } finally {
+        setScanning(false);
+      }
+    },
+    [processRawData, options]
+  );
+
   return {
     scanning,
     lastResult,
     startScanner,
     stopScanner,
     processRawData,
+    scanImageFile,
     containerId: containerIdRef.current,
   };
 }

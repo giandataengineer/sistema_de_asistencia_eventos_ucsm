@@ -17,7 +17,7 @@ export default function BarcodeScanner({
   onClose,
   continuousMode = false,
 }: BarcodeScannerProps) {
-  const { scanning, startScanner, stopScanner, containerId } = useScanner({
+  const { scanning, startScanner, stopScanner, scanImageFile, containerId } = useScanner({
     onScanSuccess: onScan,
     onScanError: onError,
     continuousMode,
@@ -57,16 +57,42 @@ export default function BarcodeScanner({
                 frente a la camara
               </p>
             </div>
-            <button
-              onClick={startScanner}
-              className="px-8 py-3 rounded-xl font-bold text-primary-deep
-                bg-gradient-to-r from-accent-dim to-accent
-                hover:shadow-[0_8px_24px_rgba(0,230,118,0.35)]
-                hover:-translate-y-0.5 transition-all"
-            >
-              <Camera className="w-5 h-5 inline-block mr-2" />
-              Iniciar Camara
-            </button>
+            </div>
+            
+            <div className="flex flex-col gap-4 w-full px-8">
+              <button
+                onClick={startScanner}
+                className="w-full py-3 rounded-xl font-bold text-primary-deep
+                  bg-gradient-to-r from-accent-dim to-accent
+                  hover:shadow-[0_8px_24px_rgba(0,230,118,0.35)]
+                  hover:-translate-y-0.5 transition-all"
+              >
+                <Camera className="w-5 h-5 inline-block mr-2" />
+                Iniciar Cámara en Vivo
+              </button>
+
+              <div className="relative w-full">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      scanImageFile(file);
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  style={{ zIndex: 10 }} // Ensure it's clickable
+                />
+                <button
+                  className="w-full py-3 rounded-xl font-bold text-accent border-2 border-accent
+                    hover:bg-accent/10 transition-all"
+                >
+                  📸 Tomar Foto (Recomendado)
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
