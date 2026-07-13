@@ -77,11 +77,17 @@ export function useScanner(options: UseScannerOptions = {}) {
 
     try {
       await scanner.start(
-        { facingMode: "environment" },
+        { facingMode: "environment" }, // Preferir cámara trasera
         {
-          fps: 10,
-          qrbox: { width: 300, height: 150 },
-          aspectRatio: 1.777,
+          fps: 15,
+          // Para PDF417 (DNI) NECESITAMOS alta resolución porque los puntos son diminutos
+          videoConstraints: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            advanced: [{ focusMode: "continuous" }] as any,
+          },
+          // Quitamos el qrbox o lo hacemos más ancho porque el PDF417 es muy largo horizontalmente
+          // Si limitamos el qrbox, el código se corta y nunca lee.
         },
         (decodedText) => processRawData(decodedText),
         () => {} // Silenciar errores de frames sin codigo detectado
