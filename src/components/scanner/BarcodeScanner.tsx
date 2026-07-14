@@ -16,7 +16,7 @@ export default function BarcodeScanner({
   onClose,
   continuousMode = false,
 }: BarcodeScannerProps) {
-  const { scanning, startScanner, stopScanner, scanImageFile, toggleCamera, containerId } = useScanner({
+  const { scanning, startScanner, stopScanner, toggleCamera, containerId } = useScanner({
     onDniDetected,
     onScanError: onError,
     continuousMode,
@@ -67,28 +67,6 @@ export default function BarcodeScanner({
                 <Camera className="w-5 h-5 inline-block mr-2" />
                 Iniciar Camara en Vivo
               </button>
-
-              <div className="relative w-full">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) scanImageFile(file);
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{ zIndex: 10 }}
-                />
-                <button
-                  className="w-full py-3 rounded-xl font-bold text-accent border-2 border-accent
-                    flex items-center justify-center gap-2
-                    hover:bg-accent/10 transition-all"
-                >
-                  <Camera className="w-5 h-5" />
-                  Tomar Foto (Recomendado)
-                </button>
-              </div>
             </div>
           </div>
         )}
