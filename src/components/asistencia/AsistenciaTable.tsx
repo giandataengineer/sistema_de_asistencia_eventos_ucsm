@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { Asistencia } from "@/interfaces/asistencia.interface";
 import { formatDatePeru, formatTimePeru } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -9,7 +10,36 @@ interface AsistenciaTableProps {
   onDelete: (id: string, nombre: string) => void;
 }
 
+function calcularPermanencia(registros: Asistencia[], r: Asistencia): string | null {
+  if (r.tipo !== "salida") return null;
+
+  const entrada = registros.find(
+    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.tipo === "entrada" && !e.eliminado
+  );
+  if (!entrada) return null;
+
+  const msEntrada = new Date(entrada.fechaRegistro).getTime();
+  const msSalida = new Date(r.fechaRegistro).getTime();
+  const diffMs = msSalida - msEntrada;
+
+  if (diffMs < 0) return null;
+
+  const horas = Math.floor(diffMs / 3600000);
+  const minutos = Math.floor((diffMs % 3600000) / 60000);
+
+  if (horas > 0) return `${horas}h ${minutos}min`;
+  return `${minutos}min`;
+}
+
 export default function AsistenciaTable({ registros, onDelete }: AsistenciaTableProps) {
+  const permanenciaMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const r of registros) {
+      map.set(r.id, calcularPermanencia(registros, r));
+    }
+    return map;
+  }, [registros]);
+
   if (registros.length === 0) {
     return (
       <div className="text-center py-12 text-muted">
@@ -30,8 +60,8 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Apellidos y Nombres</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Tipo</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Dia</th>
-              <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Fecha</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Hora</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Permanencia</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Accion</th>
             </tr>
           </thead>
@@ -40,6 +70,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               const nombreCompleto = [r.apellidoPaterno, r.apellidoMaterno, r.nombres]
                 .filter(Boolean)
                 .join(" ");
+              const permanencia = permanenciaMap.get(r.id);
               return (
                 <tr
                   key={r.id}
@@ -60,8 +91,16 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                       {r.dia}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-muted">{formatDatePeru(new Date(r.fechaRegistro))}</td>
                   <td className="px-3 py-2.5 text-muted">{formatTimePeru(new Date(r.fechaRegistro))}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    {permanencia ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                        {permanencia}
+                      </span>
+                    ) : r.tipo === "entrada" ? (
+                      <span className="text-xs text-muted">—</span>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-2.5 text-center">
                     <button
                       onClick={() => onDelete(r.id, nombreCompleto)}
@@ -84,11 +123,12 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
           const nombreCompleto = [r.apellidoPaterno, r.apellidoMaterno, r.nombres]
             .filter(Boolean)
             .join(" ");
+          const permanencia = permanenciaMap.get(r.id);
           return (
             <div
               key={r.id}
-              className="bg-white rounded-xl border border-border p-4
-                border-l-4 border-l-accent shadow-sm"
+              className={`bg-white rounded-xl border border-border p-4
+                border-l-4 ${r.tipo === "salida" ? "border-l-orange-400" : "border-l-accent"} shadow-sm`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -114,8 +154,12 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               </div>
               <div className="flex items-center gap-3 mt-2 text-xs text-muted">
                 <span>#{i + 1}</span>
-                <span>{formatDatePeru(new Date(r.fechaRegistro))}</span>
                 <span>{formatTimePeru(new Date(r.fechaRegistro))}</span>
+                {permanencia && (
+                  <span className="px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700">
+                    {permanencia}
+                  </span>
+                )}
               </div>
             </div>
           );
