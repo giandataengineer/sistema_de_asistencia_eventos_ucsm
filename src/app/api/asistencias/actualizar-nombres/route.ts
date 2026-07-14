@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { reniecService } from "@/services/reniec.service";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,7 +28,27 @@ export async function POST() {
       ],
     },
     select: { id: true, numeroDni: true },
+    take: 5,
   });
+
+  if (pendientes.length === 0) {
+    const totalPendientes = await prisma.asistencia.count({
+      where: {
+        eventoId: session.eventoId,
+        eliminado: false,
+        OR: [
+          { apellidoPaterno: "POR VERIFICAR" },
+        ],
+      },
+    });
+
+    return NextResponse.json({
+      total: 0,
+      actualizados: 0,
+      noEncontrados: totalPendientes,
+      terminado: true,
+    });
+  }
 
   let actualizados = 0;
   let noEncontrados = 0;
@@ -48,15 +67,38 @@ export async function POST() {
       });
       actualizados++;
     } else {
+      await prisma.asistencia.update({
+        where: { id: reg.id },
+        data: {
+          nombres: `DNI ${reg.numeroDni}`,
+          apellidoPaterno: "POR VERIFICAR",
+          apellidoMaterno: "",
+        },
+      });
       noEncontrados++;
     }
 
-    await delay(600);
+    await delay(300);
   }
+
+  const restantes = await prisma.asistencia.count({
+    where: {
+      eventoId: session.eventoId,
+      eliminado: false,
+      OR: [
+        { nombres: "Registrando" },
+        { apellidoPaterno: "..." },
+        { nombres: "POR ACTUALIZAR" },
+        { apellidoPaterno: "POR ACTUALIZAR" },
+      ],
+    },
+  });
 
   return NextResponse.json({
     total: pendientes.length,
     actualizados,
     noEncontrados,
+    restantes,
+    terminado: restantes === 0,
   });
 }

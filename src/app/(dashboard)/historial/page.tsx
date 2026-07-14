@@ -45,19 +45,38 @@ export default function HistorialPage() {
 
   const handleActualizarNombres = async () => {
     setUpdatingNames(true);
+    let totalActualizados = 0;
+    let totalNoEncontrados = 0;
+
     try {
-      const res = await fetch("/api/asistencias/actualizar-nombres", { method: "POST" });
-      const result = await res.json();
-      if (result.actualizados > 0) {
-        toast.success(`${result.actualizados} nombres actualizados de ${result.total} pendientes`);
-        fetchAsistencias(page, search || undefined, selectedDia || undefined);
-      } else if (result.total === 0) {
-        toast.info("No hay registros pendientes de actualizar");
-      } else {
-        toast.warning(`${result.fallidos} de ${result.total} no se pudieron actualizar (RENIEC no disponible)`);
+      let terminado = false;
+      while (!terminado) {
+        const res = await fetch("/api/asistencias/actualizar-nombres", { method: "POST" });
+        if (!res.ok) throw new Error("Error en la peticion");
+        const result = await res.json();
+
+        totalActualizados += result.actualizados || 0;
+        totalNoEncontrados += result.noEncontrados || 0;
+        terminado = result.terminado;
+
+        if (!terminado && result.total > 0) {
+          toast.info(`Actualizando... ${totalActualizados} completados, quedan ${result.restantes}`, { duration: 2000 });
+        }
+      }
+
+      fetchAsistencias(page, search || undefined, selectedDia || undefined);
+
+      if (totalActualizados > 0) {
+        toast.success(`${totalActualizados} nombres actualizados`);
+      } else if (totalNoEncontrados === 0) {
+        toast.info("No hay registros pendientes");
+      }
+
+      if (totalNoEncontrados > 0) {
+        toast.warning(`${totalNoEncontrados} DNIs no encontrados en RENIEC (marcados como POR VERIFICAR)`);
       }
     } catch {
-      toast.error("Error al actualizar nombres");
+      toast.error("Error al actualizar nombres. Intenta de nuevo.");
     } finally {
       setUpdatingNames(false);
     }
