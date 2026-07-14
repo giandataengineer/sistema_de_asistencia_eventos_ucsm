@@ -25,13 +25,14 @@ export async function POST() {
         { apellidoPaterno: "..." },
         { nombres: "POR ACTUALIZAR" },
         { apellidoPaterno: "POR ACTUALIZAR" },
+        { apellidoPaterno: "POR VERIFICAR" },
       ],
     },
     select: { id: true, numeroDni: true },
   });
 
   let actualizados = 0;
-  let fallidos = 0;
+  let noEncontrados = 0;
 
   for (const reg of pendientes) {
     const result = await reniecService.consultarDni(reg.numeroDni);
@@ -47,15 +48,15 @@ export async function POST() {
       });
       actualizados++;
     } else {
-      fallidos++;
+      noEncontrados++;
     }
 
-    await delay(500);
+    await delay(600);
   }
 
   return NextResponse.json({
     total: pendientes.length,
     actualizados,
-    fallidos,
+    noEncontrados,
   });
 }

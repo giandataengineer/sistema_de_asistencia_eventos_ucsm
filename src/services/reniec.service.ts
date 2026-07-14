@@ -1,12 +1,13 @@
-const RENIEC_API = "https://api.apis.net.pe/v1/dni";
+const RENIEC_API_V1 = "https://api.apis.net.pe/v1/dni";
+const RENIEC_API_V2 = "https://api.apis.net.pe/v2/reniec/dni";
 
 interface ReniecResponse {
-  nombre: string;
-  tipoDocumento: string;
-  numeroDocumento: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-  nombres: string;
+  nombre?: string;
+  tipoDocumento?: string;
+  numeroDocumento?: string;
+  apellidoPaterno?: string;
+  apellidoMaterno?: string;
+  nombres?: string;
 }
 
 const cache = new Map<string, { data: ReniecResponse; timestamp: number }>();
@@ -16,8 +17,21 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function tryFetch(url: string): Promise<ReniecResponse | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (res.status === 429) return null;
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.nombres || json.apellidoPaterno) return json;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export const reniecService = {
-  async consultarDni(dni: string, retries = 2): Promise<{
+  async consultarDni(dni: string): Promise<{
     success: boolean;
     data?: {
       nombres: string;
@@ -35,52 +49,40 @@ export const reniecService = {
       return {
         success: true,
         data: {
-          nombres: cached.data.nombres,
-          apellidoPaterno: cached.data.apellidoPaterno,
-          apellidoMaterno: cached.data.apellidoMaterno,
+          nombres: cached.data.nombres || "",
+          apellidoPaterno: cached.data.apellidoPaterno || "",
+          apellidoMaterno: cached.data.apellidoMaterno || "",
         },
       };
     }
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        if (attempt > 0) await delay(1000 * attempt);
+    // Intento 1: API v1
+    let json = await tryFetch(`${RENIEC_API_V1}?numero=${dni}`);
 
-        const res = await fetch(`${RENIEC_API}?numero=${dni}`, {
-          signal: AbortSignal.timeout(5000),
-        });
-
-        if (res.status === 429) {
-          if (attempt < retries) continue;
-          return { success: false, error: "RENIEC saturado, se reintentara despues" };
-        }
-
-        if (!res.ok) {
-          return { success: false, error: "DNI no encontrado en RENIEC" };
-        }
-
-        const json: ReniecResponse = await res.json();
-
-        if (!json.nombres && !json.apellidoPaterno) {
-          return { success: false, error: "No se encontraron datos para este DNI" };
-        }
-
-        cache.set(dni, { data: json, timestamp: Date.now() });
-
-        return {
-          success: true,
-          data: {
-            nombres: json.nombres || "",
-            apellidoPaterno: json.apellidoPaterno || "",
-            apellidoMaterno: json.apellidoMaterno || "",
-          },
-        };
-      } catch {
-        if (attempt < retries) continue;
-        return { success: false, error: "Error al consultar RENIEC" };
-      }
+    // Intento 2: retry v1 tras delay (para 429)
+    if (!json) {
+      await delay(800);
+      json = await tryFetch(`${RENIEC_API_V1}?numero=${dni}`);
     }
 
-    return { success: false, error: "Error al consultar RENIEC" };
+    // Intento 3: API v2 como fallback
+    if (!json) {
+      await delay(500);
+      json = await tryFetch(`${RENIEC_API_V2}?numero=${dni}`);
+    }
+
+    if (json) {
+      cache.set(dni, { data: json, timestamp: Date.now() });
+      return {
+        success: true,
+        data: {
+          nombres: json.nombres || "",
+          apellidoPaterno: json.apellidoPaterno || "",
+          apellidoMaterno: json.apellidoMaterno || "",
+        },
+      };
+    }
+
+    return { success: false, error: "No se pudo obtener datos de RENIEC" };
   },
 };

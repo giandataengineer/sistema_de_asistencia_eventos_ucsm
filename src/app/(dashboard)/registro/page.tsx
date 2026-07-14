@@ -76,14 +76,15 @@ export default function RegistroPage() {
           debouncedRefresh();
 
           consultarDni(dni).then((reniecResult) => {
-            if (reniecResult.success && reniecResult.data) {
-              const { nombres, apellidoPaterno, apellidoMaterno } = reniecResult.data;
-              fetch(`/api/asistencias/${regResult.data.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ nombres, apellidoPaterno, apellidoMaterno }),
-              }).then(() => debouncedRefresh());
-            }
+            const patchData = reniecResult.success && reniecResult.data
+              ? reniecResult.data
+              : { nombres: `DNI ${dni}`, apellidoPaterno: "POR VERIFICAR", apellidoMaterno: "" };
+
+            fetch(`/api/asistencias/${regResult.data.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(patchData),
+            }).then(() => debouncedRefresh());
           });
         } else if (regResult.duplicado) {
           toast.warning(regResult.error, { duration: 2000 });
