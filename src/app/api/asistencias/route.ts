@@ -60,9 +60,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result.data, { status: 201 });
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al registrar asistencia";
+    console.error("POST /api/asistencias error:", message);
     return NextResponse.json(
-      { error: "Error al registrar asistencia" },
+      { error: message },
       { status: 500 }
     );
   }
