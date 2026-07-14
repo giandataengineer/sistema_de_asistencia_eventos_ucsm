@@ -11,28 +11,32 @@ interface UseScannerOptions {
   continuousMode?: boolean;
 }
 
-async function applyMaxQualityConstraints(containerId: string) {
+async function applyZoomAndFocus(containerId: string) {
   try {
     const video = document.querySelector(`#${containerId} video`) as HTMLVideoElement | null;
     if (!video?.srcObject) return;
     const track = (video.srcObject as MediaStream).getVideoTracks()[0];
     if (!track) return;
 
-    const capabilities = track.getCapabilities() as any;
-    const advanced: Record<string, unknown> = {};
+    const caps = track.getCapabilities() as any;
+    const settings: Record<string, unknown> = {};
 
-    if (capabilities.focusMode?.includes("continuous")) {
-      advanced.focusMode = "continuous";
+    if (caps.zoom) {
+      settings.zoom = Math.min(caps.zoom.max, 3.0);
     }
-    if (capabilities.zoom) {
-      advanced.zoom = Math.min(capabilities.zoom.max, 2.5);
+    if (caps.focusMode?.includes("continuous")) {
+      settings.focusMode = "continuous";
     }
 
-    if (Object.keys(advanced).length > 0) {
-      await track.applyConstraints({ advanced: [advanced] } as any);
+    if (Object.keys(settings).length > 0) {
+      try {
+        await track.applyConstraints({ advanced: [settings] } as any);
+      } catch {
+        await track.applyConstraints(settings as any);
+      }
     }
   } catch {
-    // Not all browsers support these constraints
+    // Browser doesn't support zoom/focus constraints
   }
 }
 
@@ -112,7 +116,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
       return;
     } catch {
       // exact no soportado, intentar sin exact
@@ -126,7 +130,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
       return;
     } catch {
       // tampoco funciono
@@ -140,7 +144,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
     } catch (finalErr) {
       setScanning(false);
       const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
