@@ -36,6 +36,22 @@ export const asistenciaService = {
     );
 
     if (existente) {
+      if (existente.eliminado) {
+        const reactivado = await prisma.asistencia.update({
+          where: { id: existente.id },
+          data: {
+            eliminado: false,
+            eliminadoAt: null,
+            fechaRegistro: new Date(),
+            apellidoPaterno: input.apellidoPaterno,
+            apellidoMaterno: input.apellidoMaterno,
+            nombres: input.nombres,
+            registradoPor,
+          },
+        });
+        return { success: true, data: reactivado };
+      }
+
       const hora = formatTimePeru(existente.fechaRegistro);
       return {
         success: false,

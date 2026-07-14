@@ -23,7 +23,6 @@ export const asistenciaRepository = {
         numeroDni,
         eventoId,
         dia,
-        eliminado: false,
       },
     });
   },
