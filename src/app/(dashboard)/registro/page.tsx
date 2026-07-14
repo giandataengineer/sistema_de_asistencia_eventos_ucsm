@@ -44,6 +44,13 @@ export default function RegistroPage() {
     fetchAsistencias(1);
   }, [fetchAsistencias]);
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1), 1500);
+  }, [fetchAsistencias]);
+
   const handleDniDetected = useCallback(
     async (dni: string) => {
       if (processingRef.current) return;
@@ -52,38 +59,34 @@ export default function RegistroPage() {
       setLastManualResult(null);
 
       try {
-        let nombres = "POR ACTUALIZAR";
-        let apellidoPaterno = "POR ACTUALIZAR";
-        let apellidoMaterno: string | null = null;
-
-        const reniecResult = await consultarDni(dni);
-
-        if (reniecResult.success && reniecResult.data) {
-          nombres = reniecResult.data.nombres;
-          apellidoPaterno = reniecResult.data.apellidoPaterno;
-          apellidoMaterno = reniecResult.data.apellidoMaterno || null;
-        } else {
-          toast.warning("RENIEC no disponible. Registrando solo con DNI.", { duration: 3000 });
-        }
-
         const regResult = await registrar({
           numeroDni: dni,
-          apellidoPaterno,
-          apellidoMaterno,
-          nombres,
+          apellidoPaterno: "...",
+          apellidoMaterno: null,
+          nombres: "Registrando",
           tipoDni: "electronico",
         });
 
         if (regResult.success) {
-          const nombreCompleto = `${nombres} ${apellidoPaterno}`;
-          toast.success(`${apellidoPaterno} ${nombres} registrado`, { duration: 1500 });
-          setSuccessName(nombreCompleto);
+          toast.success(`DNI ${dni} registrado`, { duration: 1200 });
+          setSuccessName(dni);
           setShowSuccessModal(true);
-          setLastManualResult({ nombre: `${nombreCompleto} - Registrado`, success: true });
-          setTimeout(() => setShowSuccessModal(false), 800);
-          fetchAsistencias(1);
+          setLastManualResult({ nombre: `DNI ${dni} - Registrado`, success: true });
+          setTimeout(() => setShowSuccessModal(false), 700);
+          debouncedRefresh();
+
+          consultarDni(dni).then((reniecResult) => {
+            if (reniecResult.success && reniecResult.data) {
+              const { nombres, apellidoPaterno, apellidoMaterno } = reniecResult.data;
+              fetch(`/api/asistencias/${regResult.data.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nombres, apellidoPaterno, apellidoMaterno }),
+              }).then(() => debouncedRefresh());
+            }
+          });
         } else if (regResult.duplicado) {
-          toast.warning(regResult.error, { duration: 3000 });
+          toast.warning(regResult.error, { duration: 2000 });
           setLastManualResult({ nombre: regResult.error || "Ya registrado hoy", success: false });
         } else {
           toast.error(regResult.error || "Error al registrar");
@@ -97,7 +100,7 @@ export default function RegistroPage() {
         processingRef.current = false;
       }
     },
-    [consultarDni, registrar, fetchAsistencias]
+    [consultarDni, registrar, debouncedRefresh]
   );
 
   const handleDelete = async () => {
