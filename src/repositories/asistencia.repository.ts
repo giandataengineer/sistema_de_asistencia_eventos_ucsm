@@ -11,18 +11,20 @@ export const asistenciaRepository = {
         nombres: data.nombres,
         tipoDni: data.tipoDni,
         dia: data.dia ?? 1,
+        tipo: data.tipo ?? "entrada",
         eventoId: data.eventoId,
         registradoPor: data.registradoPor,
       },
     });
   },
 
-  async findByDniEventoDia(numeroDni: string, eventoId: string, dia: number) {
+  async findByDniEventoDiaTipo(numeroDni: string, eventoId: string, dia: number, tipo: string) {
     return prisma.asistencia.findFirst({
       where: {
         numeroDni,
         eventoId,
         dia,
+        tipo,
       },
     });
   },
@@ -35,6 +37,7 @@ export const asistenciaRepository = {
       eventoId,
       eliminado: false,
       ...(dia && { dia }),
+      ...(params.tipo && { tipo: params.tipo }),
       ...(search && {
         OR: [
           { numeroDni: { contains: search } },

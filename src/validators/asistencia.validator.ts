@@ -24,6 +24,7 @@ export const createAsistenciaSchema = z.object({
   tipoDni: z.enum(["azul", "electronico"]),
   eventoId: z.string().min(1, "ID de evento requerido"),
   dia: z.number().int().min(1).optional(),
+  tipo: z.enum(["entrada", "salida"]).optional(),
 });
 
 export type CreateAsistenciaInput = z.infer<typeof createAsistenciaSchema>;

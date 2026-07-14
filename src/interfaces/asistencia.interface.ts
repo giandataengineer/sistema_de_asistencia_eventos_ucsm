@@ -6,6 +6,7 @@ export interface Asistencia {
   nombres: string;
   tipoDni: string;
   dia: number;
+  tipo: string;
   eventoId: string;
   registradoPor: string;
   fechaRegistro: Date;
@@ -19,6 +20,7 @@ export interface AsistenciaCreate {
   nombres: string;
   tipoDni: string;
   dia?: number;
+  tipo?: string;
   eventoId: string;
   registradoPor: string;
 }
@@ -29,6 +31,7 @@ export interface AsistenciaListParams {
   limit?: number;
   search?: string;
   dia?: number;
+  tipo?: string;
 }
 
 export interface PaginatedResponse<T> {

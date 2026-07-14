@@ -16,9 +16,12 @@ import {
   Users,
   ToggleLeft,
   ToggleRight,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 
 type ScanMode = "camera" | "manual" | "external";
+type TipoRegistro = "entrada" | "salida";
 
 const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { mode: "camera", label: "Camara", icon: Camera },
@@ -29,6 +32,7 @@ const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ cl
 export default function RegistroPage() {
   const { usuario } = useAuth();
   const [mode, setMode] = useState<ScanMode>("camera");
+  const [tipoRegistro, setTipoRegistro] = useState<TipoRegistro>("entrada");
   const [continuousMode, setContinuousMode] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
@@ -75,6 +79,8 @@ export default function RegistroPage() {
       setDniLoading(true);
       setLastManualResult(null);
 
+      const tipoLabel = tipoRegistro === "entrada" ? "ENTRADA" : "SALIDA";
+
       try {
         const regResult = await registrar({
           numeroDni: dni,
@@ -82,13 +88,14 @@ export default function RegistroPage() {
           apellidoMaterno: null,
           nombres: "Registrando",
           tipoDni: "electronico",
+          tipo: tipoRegistro,
         });
 
         if (regResult.success) {
-          toast.success(`DNI ${dni} registrado`, { duration: 1200 });
-          setSuccessName(dni);
+          toast.success(`${tipoLabel} - DNI ${dni}`, { duration: 1200 });
+          setSuccessName(`${tipoLabel} - ${dni}`);
           setShowSuccessModal(true);
-          setLastManualResult({ nombre: `DNI ${dni} - Registrado`, success: true });
+          setLastManualResult({ nombre: `DNI ${dni} - ${tipoLabel}`, success: true });
           setTimeout(() => setShowSuccessModal(false), 700);
           debouncedRefresh();
 
@@ -105,7 +112,7 @@ export default function RegistroPage() {
           });
         } else if (regResult.duplicado) {
           toast.warning(regResult.error, { duration: 2000 });
-          setLastManualResult({ nombre: regResult.error || "Ya registrado hoy", success: false });
+          setLastManualResult({ nombre: regResult.error || "Ya registrado", success: false });
         } else {
           toast.error(regResult.error || "Error al registrar");
           setLastManualResult({ nombre: regResult.error || "Error al registrar", success: false });
@@ -118,7 +125,7 @@ export default function RegistroPage() {
         processingRef.current = false;
       }
     },
-    [consultarDni, registrar, debouncedRefresh]
+    [consultarDni, registrar, debouncedRefresh, tipoRegistro]
   );
 
   const handleDelete = async () => {
@@ -150,6 +157,33 @@ export default function RegistroPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-border shadow-sm p-4 mb-6">
+        {/* Entrada / Salida toggle */}
+        <div className="flex items-center gap-2 p-1 bg-surface-alt rounded-lg mb-4">
+          <button
+            onClick={() => setTipoRegistro("entrada")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
+              tipoRegistro === "entrada"
+                ? "bg-green-600 text-white shadow-md"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            <LogIn className="w-5 h-5" />
+            ENTRADA
+          </button>
+          <button
+            onClick={() => setTipoRegistro("salida")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
+              tipoRegistro === "salida"
+                ? "bg-orange-500 text-white shadow-md"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            <LogOut className="w-5 h-5" />
+            SALIDA
+          </button>
+        </div>
+
+        {/* Mode tabs */}
         <div className="flex items-center gap-1 p-1 bg-surface-alt rounded-lg mb-4">
           {MODE_TABS.map((tab) => (
             <button
@@ -225,11 +259,16 @@ export default function RegistroPage() {
 
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-accent/20 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-primary/90 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-50 duration-300 border border-accent/30">
-            <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center animate-bounce shadow-[0_0_40px_rgba(0,230,118,0.6)]">
-              <span className="text-primary text-5xl font-black">&#10003;</span>
+          <div className={`${tipoRegistro === "salida" ? "bg-orange-500/90" : "bg-primary/90"} p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-50 duration-300 border border-accent/30`}>
+            <div className={`w-24 h-24 rounded-full ${tipoRegistro === "salida" ? "bg-white" : "bg-accent"} flex items-center justify-center animate-bounce shadow-[0_0_40px_rgba(0,230,118,0.6)]`}>
+              {tipoRegistro === "salida"
+                ? <LogOut className="text-orange-500 w-12 h-12" />
+                : <span className="text-primary text-5xl font-black">&#10003;</span>
+              }
             </div>
-            <h2 className="text-4xl font-black text-accent tracking-wider uppercase drop-shadow-md">Registrado!</h2>
+            <h2 className="text-4xl font-black text-white tracking-wider uppercase drop-shadow-md">
+              {tipoRegistro === "salida" ? "Salida!" : "Entrada!"}
+            </h2>
             {successName && (
               <p className="text-white text-xl font-medium mt-2">{successName}</p>
             )}

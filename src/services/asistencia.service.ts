@@ -28,11 +28,13 @@ async function calcularDia(eventoId: string): Promise<number> {
 export const asistenciaService = {
   async registrar(input: CreateAsistenciaInput, registradoPor: string) {
     const dia = input.dia ?? await calcularDia(input.eventoId);
+    const tipo = input.tipo ?? "entrada";
 
-    const existente = await asistenciaRepository.findByDniEventoDia(
+    const existente = await asistenciaRepository.findByDniEventoDiaTipo(
       input.numeroDni,
       input.eventoId,
-      dia
+      dia,
+      tipo
     );
 
     if (existente) {
@@ -52,10 +54,11 @@ export const asistenciaService = {
         return { success: true, data: reactivado };
       }
 
+      const tipoLabel = tipo === "entrada" ? "entrada" : "salida";
       const hora = formatTimePeru(existente.fechaRegistro);
       return {
         success: false,
-        error: `Este participante ya fue registrado el dia ${dia} a las ${hora}`,
+        error: `${tipoLabel.toUpperCase()} ya registrada el dia ${dia} a las ${hora}`,
         duplicado: true,
       };
     }
@@ -63,6 +66,7 @@ export const asistenciaService = {
     const asistencia = await asistenciaRepository.create({
       ...input,
       dia,
+      tipo,
       registradoPor,
     });
 

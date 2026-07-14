@@ -48,6 +48,7 @@ model Asistencia {
   nombres         String    @db.VarChar(150)
   tipoDni         String    @map("tipo_dni") @db.VarChar(15)
   dia             Int       @default(1)
+  tipo            String    @default("entrada") @db.VarChar(10)
   eventoId        String    @map("evento_id")
   registradoPor   String    @map("registrado_por")
   fechaRegistro   DateTime  @default(now()) @map("fecha_registro")
@@ -57,7 +58,7 @@ model Asistencia {
   evento   Evento  @relation(fields: [eventoId], references: [id])
   registrador Usuario @relation(fields: [registradoPor], references: [id])
 
-  @@unique([numeroDni, eventoId, dia])
+  @@unique([numeroDni, eventoId, dia, tipo])
   @@index([eventoId])
   @@index([numeroDni])
   @@index([fechaRegistro(sort: Desc)])
