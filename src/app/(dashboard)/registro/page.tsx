@@ -45,8 +45,8 @@ export default function RegistroPage() {
   const { data, fetchAsistencias, registrar, eliminar, consultarDni } = useAsistencias();
 
   useEffect(() => {
-    fetchAsistencias(1);
-  }, [fetchAsistencias]);
+    fetchAsistencias(1, undefined, undefined, tipoRegistro);
+  }, [fetchAsistencias, tipoRegistro]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -55,7 +55,7 @@ export default function RegistroPage() {
         if (res.ok) {
           const result = await res.json();
           if (result.actualizados > 0) {
-            fetchAsistencias(1);
+            fetchAsistencias(1, undefined, undefined, tipoRegistro);
           }
         }
       } catch {
@@ -63,14 +63,14 @@ export default function RegistroPage() {
       }
     }, 45000);
     return () => clearInterval(interval);
-  }, [fetchAsistencias]);
+  }, [fetchAsistencias, tipoRegistro]);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1), 1500);
-  }, [fetchAsistencias]);
+    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1, undefined, undefined, tipoRegistro), 1500);
+  }, [fetchAsistencias, tipoRegistro]);
 
   const handleDniDetected = useCallback(
     async (dni: string) => {
@@ -133,7 +133,7 @@ export default function RegistroPage() {
     const ok = await eliminar(deleteTarget.id);
     if (ok) {
       toast.success("Registro eliminado");
-      fetchAsistencias(1);
+      fetchAsistencias(1, undefined, undefined, tipoRegistro);
     } else {
       toast.error("Error al eliminar");
     }

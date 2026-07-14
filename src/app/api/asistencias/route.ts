@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "20", 10);
   const search = searchParams.get("search") || undefined;
   const dia = searchParams.get("dia") ? parseInt(searchParams.get("dia")!, 10) : undefined;
+  const tipo = searchParams.get("tipo") || undefined;
 
   const result = await asistenciaService.listar({
     eventoId: session.eventoId,
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     limit,
     search,
     dia,
+    tipo,
   });
 
   return NextResponse.json(result);
