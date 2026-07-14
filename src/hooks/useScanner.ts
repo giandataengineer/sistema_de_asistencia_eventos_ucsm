@@ -19,24 +19,37 @@ async function applyZoomAndFocus(containerId: string) {
     if (!track) return;
 
     const caps = track.getCapabilities() as any;
-    const settings: Record<string, unknown> = {};
 
     if (caps.zoom) {
-      settings.zoom = Math.min(caps.zoom.max, 3.0);
-    }
-    if (caps.focusMode?.includes("continuous")) {
-      settings.focusMode = "continuous";
+      const targetZoom = Math.min(caps.zoom.max, 3.0);
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: targetZoom }] } as any);
+      } catch {
+        try {
+          await track.applyConstraints({ zoom: targetZoom } as any);
+        } catch {
+          // zoom not supported
+        }
+      }
     }
 
-    if (Object.keys(settings).length > 0) {
+    if (caps.focusMode?.includes("continuous")) {
       try {
-        await track.applyConstraints({ advanced: [settings] } as any);
+        await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] } as any);
       } catch {
-        await track.applyConstraints(settings as any);
+        // focus not supported
+      }
+    }
+
+    if (caps.torch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: false }] } as any);
+      } catch {
+        // torch not supported
       }
     }
   } catch {
-    // Browser doesn't support zoom/focus constraints
+    // Browser doesn't support constraints
   }
 }
 
@@ -106,31 +119,54 @@ export function useScanner(options: UseScannerOptions = {}) {
     const onSuccess = (decodedText: string) => processRawData(decodedText);
     const onFailure = () => {};
 
-    const config = { fps: 15, qrbox: { width: 300, height: 150 } };
+    const hdConfig = {
+      fps: 10,
+      videoConstraints: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        facingMode: { exact: modeToUse },
+      },
+    };
 
-    // Intento 1: camara trasera forzada
+    const sdConfig = {
+      fps: 10,
+      videoConstraints: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: modeToUse,
+      },
+    };
+
+    const fallbackConfig = {
+      fps: 10,
+      videoConstraints: {
+        facingMode: "environment",
+      },
+    };
+
+    // Intento 1: camara trasera forzada + 1080p
     try {
       await scanner.start(
         { facingMode: { exact: modeToUse } },
-        config,
+        hdConfig,
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
       return;
     } catch {
-      // exact no soportado, intentar sin exact
+      // exact no soportado
     }
 
-    // Intento 2: camara trasera preferida
+    // Intento 2: camara trasera preferida + 720p
     try {
       await scanner.start(
         { facingMode: modeToUse },
-        config,
+        sdConfig,
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
       return;
     } catch {
       // tampoco funciono
@@ -140,11 +176,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     try {
       await scanner.start(
         { facingMode: "environment" },
-        config,
+        fallbackConfig,
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 800);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
     } catch (finalErr) {
       setScanning(false);
       const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
