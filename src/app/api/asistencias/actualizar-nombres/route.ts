@@ -28,7 +28,7 @@ export async function POST() {
       ],
     },
     select: { id: true, numeroDni: true },
-    take: 5,
+    take: 3,
   });
 
   if (pendientes.length === 0) {
@@ -78,7 +78,7 @@ export async function POST() {
       noEncontrados++;
     }
 
-    await delay(300);
+    await delay(500);
   }
 
   const restantes = await prisma.asistencia.count({

@@ -44,6 +44,23 @@ export default function RegistroPage() {
     fetchAsistencias(1);
   }, [fetchAsistencias]);
 
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/asistencias/actualizar-nombres", { method: "POST" });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.actualizados > 0) {
+            fetchAsistencias(1);
+          }
+        }
+      } catch {
+        // silencioso en background
+      }
+    }, 45000);
+    return () => clearInterval(interval);
+  }, [fetchAsistencias]);
+
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedRefresh = useCallback(() => {
