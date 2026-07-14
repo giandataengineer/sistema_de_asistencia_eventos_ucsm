@@ -89,7 +89,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         } else {
           setTimeout(() => {
             lastScannedRef.current = "";
-          }, 2000);
+          }, 1000);
         }
       } else {
         options.onScanError?.(result.error || "No se detecto un DNI valido");
@@ -120,7 +120,7 @@ export function useScanner(options: UseScannerOptions = {}) {
     const onFailure = () => {};
 
     const hdConfig = {
-      fps: 10,
+      fps: 15,
       videoConstraints: {
         width: { ideal: 1920 },
         height: { ideal: 1080 },
@@ -129,7 +129,7 @@ export function useScanner(options: UseScannerOptions = {}) {
     };
 
     const sdConfig = {
-      fps: 10,
+      fps: 15,
       videoConstraints: {
         width: { ideal: 1280 },
         height: { ideal: 720 },
@@ -138,7 +138,7 @@ export function useScanner(options: UseScannerOptions = {}) {
     };
 
     const fallbackConfig = {
-      fps: 10,
+      fps: 15,
       videoConstraints: {
         facingMode: "environment",
       },
@@ -152,7 +152,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 500);
       return;
     } catch {
       // exact no soportado
@@ -166,7 +166,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 500);
       return;
     } catch {
       // tampoco funciono
@@ -180,7 +180,7 @@ export function useScanner(options: UseScannerOptions = {}) {
         onSuccess,
         onFailure
       );
-      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 1000);
+      setTimeout(() => applyZoomAndFocus(containerIdRef.current), 500);
     } catch (finalErr) {
       setScanning(false);
       const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";

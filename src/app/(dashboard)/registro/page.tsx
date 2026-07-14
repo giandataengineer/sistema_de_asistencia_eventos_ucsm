@@ -76,11 +76,11 @@ export default function RegistroPage() {
 
         if (regResult.success) {
           const nombreCompleto = `${nombres} ${apellidoPaterno}`;
-          toast.success(`${apellidoPaterno} ${nombres} registrado`, { duration: 2000 });
+          toast.success(`${apellidoPaterno} ${nombres} registrado`, { duration: 1500 });
           setSuccessName(nombreCompleto);
           setShowSuccessModal(true);
           setLastManualResult({ nombre: `${nombreCompleto} - Registrado`, success: true });
-          setTimeout(() => setShowSuccessModal(false), 1500);
+          setTimeout(() => setShowSuccessModal(false), 800);
           fetchAsistencias(1);
         } else if (regResult.duplicado) {
           toast.warning(regResult.error, { duration: 3000 });

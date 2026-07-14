@@ -40,7 +40,7 @@ export const reniecService = {
 
     try {
       const res = await fetch(`${RENIEC_API}?numero=${dni}`, {
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(3000),
       });
 
       if (!res.ok) {
