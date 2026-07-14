@@ -78,34 +78,47 @@ export function useScanner(options: UseScannerOptions = {}) {
     scannerRef.current = scanner;
     setScanning(true);
 
+    const onSuccess = (decodedText: string) => processRawData(decodedText);
+    const onFailure = () => {};
+
+    // Intento 1: exact facingMode (fuerza trasera/delantera)
     try {
       await scanner.start(
         { facingMode: { exact: modeToUse } },
-        {
-          fps: 10,
-          videoConstraints: {
-            facingMode: { exact: modeToUse },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        },
-        (decodedText) => processRawData(decodedText),
-        () => {}
+        { fps: 10, videoConstraints: { facingMode: { exact: modeToUse }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+        onSuccess,
+        onFailure
       );
+      return;
     } catch {
+      // exact no soportado, intentar sin exact
+    }
+
+    // Intento 2: facingMode como preferencia (no exact)
+    try {
+      await scanner.start(
+        { facingMode: modeToUse },
+        { fps: 10, videoConstraints: { facingMode: modeToUse } },
+        onSuccess,
+        onFailure
+      );
+      return;
+    } catch {
+      // preferencia no funciono, intentar cualquier camara
+    }
+
+    // Intento 3: cualquier camara disponible
+    try {
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10 },
+        onSuccess,
+        onFailure
+      );
+    } catch (finalErr) {
       setScanning(false);
-      try {
-        await scanner.start(
-          { facingMode: modeToUse },
-          { fps: 10, videoConstraints: { facingMode: modeToUse } },
-          (decodedText) => processRawData(decodedText),
-          () => {}
-        );
-        setScanning(true);
-      } catch (fallbackErr) {
-        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la camara";
-        options.onScanError?.(message);
-      }
+      const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
+      options.onScanError?.(message);
     }
   }, [facingMode, options, processRawData]);
 
