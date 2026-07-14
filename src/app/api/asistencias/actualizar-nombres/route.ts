@@ -24,7 +24,6 @@ export async function POST() {
         { apellidoPaterno: "..." },
         { nombres: "POR ACTUALIZAR" },
         { apellidoPaterno: "POR ACTUALIZAR" },
-        { apellidoPaterno: "POR VERIFICAR" },
       ],
     },
     select: { id: true, numeroDni: true },
@@ -32,20 +31,10 @@ export async function POST() {
   });
 
   if (pendientes.length === 0) {
-    const totalPendientes = await prisma.asistencia.count({
-      where: {
-        eventoId: session.eventoId,
-        eliminado: false,
-        OR: [
-          { apellidoPaterno: "POR VERIFICAR" },
-        ],
-      },
-    });
-
     return NextResponse.json({
       total: 0,
       actualizados: 0,
-      noEncontrados: totalPendientes,
+      noEncontrados: 0,
       terminado: true,
     });
   }

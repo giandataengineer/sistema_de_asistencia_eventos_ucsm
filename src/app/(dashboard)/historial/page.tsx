@@ -8,8 +8,7 @@ import ExportButtons from "@/components/asistencia/ExportButtons";
 import Pagination from "@/components/asistencia/Pagination";
 import DeleteModal from "@/components/asistencia/DeleteModal";
 import { toast } from "sonner";
-import { Search, Users, Calendar, RefreshCw, LogIn, LogOut } from "lucide-react";
-import type { Asistencia, PaginatedResponse } from "@/interfaces/asistencia.interface";
+import { Search, Calendar, RefreshCw, LogIn, LogOut } from "lucide-react";
 
 const DAY_OPTIONS = [
   { value: 0, label: "Todos" },
@@ -22,80 +21,50 @@ const DAY_OPTIONS = [
 
 export default function HistorialPage() {
   const { usuario } = useAuth();
-  const [pageEntrada, setPageEntrada] = useState(1);
-  const [pageSalida, setPageSalida] = useState(1);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [selectedDia, setSelectedDia] = useState(0);
+  const [selectedTipo, setSelectedTipo] = useState<"entrada" | "salida">("entrada");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
   const [updatingNames, setUpdatingNames] = useState(false);
+  const [countEntrada, setCountEntrada] = useState(0);
+  const [countSalida, setCountSalida] = useState(0);
 
-  const [dataEntrada, setDataEntrada] = useState<PaginatedResponse<Asistencia> | null>(null);
-  const [dataSalida, setDataSalida] = useState<PaginatedResponse<Asistencia> | null>(null);
-  const [loadingEntrada, setLoadingEntrada] = useState(false);
-  const [loadingSalida, setLoadingSalida] = useState(false);
+  const { data, loading, fetchAsistencias, eliminar } = useAsistencias();
 
-  const { eliminar } = useAsistencias();
-
-  const fetchSection = useCallback(
-    async (
-      tipo: string,
-      page: number,
-      searchVal?: string,
-      dia?: number
-    ) => {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "20",
-        tipo,
-      });
-      if (searchVal) params.set("search", searchVal);
-      if (dia) params.set("dia", String(dia));
-
-      const res = await fetch(`/api/asistencias?${params}`);
-      if (!res.ok) throw new Error("Error al obtener asistencias");
-      return res.json() as Promise<PaginatedResponse<Asistencia>>;
-    },
-    []
-  );
-
-  const fetchEntradas = useCallback(async () => {
-    setLoadingEntrada(true);
+  const fetchCounts = useCallback(async () => {
     try {
-      const result = await fetchSection("entrada", pageEntrada, search || undefined, selectedDia || undefined);
-      setDataEntrada(result);
+      const diaParam = selectedDia ? `&dia=${selectedDia}` : "";
+      const [resE, resS] = await Promise.all([
+        fetch(`/api/asistencias?limit=1&tipo=entrada${diaParam}`),
+        fetch(`/api/asistencias?limit=1&tipo=salida${diaParam}`),
+      ]);
+      if (resE.ok) {
+        const d = await resE.json();
+        setCountEntrada(d.total ?? 0);
+      }
+      if (resS.ok) {
+        const d = await resS.json();
+        setCountSalida(d.total ?? 0);
+      }
     } catch {
       // silent
-    } finally {
-      setLoadingEntrada(false);
     }
-  }, [fetchSection, pageEntrada, search, selectedDia]);
-
-  const fetchSalidas = useCallback(async () => {
-    setLoadingSalida(true);
-    try {
-      const result = await fetchSection("salida", pageSalida, search || undefined, selectedDia || undefined);
-      setDataSalida(result);
-    } catch {
-      // silent
-    } finally {
-      setLoadingSalida(false);
-    }
-  }, [fetchSection, pageSalida, search, selectedDia]);
+  }, [selectedDia]);
 
   useEffect(() => {
-    fetchEntradas();
-  }, [fetchEntradas]);
+    fetchAsistencias(page, search || undefined, selectedDia || undefined, selectedTipo);
+  }, [fetchAsistencias, page, search, selectedDia, selectedTipo]);
 
   useEffect(() => {
-    fetchSalidas();
-  }, [fetchSalidas]);
+    fetchCounts();
+  }, [fetchCounts]);
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      setPageEntrada(1);
-      setPageSalida(1);
+      setPage(1);
       setSearch(searchInput);
     },
     [searchInput]
@@ -122,8 +91,8 @@ export default function HistorialPage() {
         }
       }
 
-      fetchEntradas();
-      fetchSalidas();
+      fetchAsistencias(page, search || undefined, selectedDia || undefined, selectedTipo);
+      fetchCounts();
 
       if (totalActualizados > 0) {
         toast.success(`${totalActualizados} nombres actualizados`);
@@ -143,8 +112,12 @@ export default function HistorialPage() {
 
   const handleDiaChange = (dia: number) => {
     setSelectedDia(dia);
-    setPageEntrada(1);
-    setPageSalida(1);
+    setPage(1);
+  };
+
+  const handleTipoChange = (tipo: "entrada" | "salida") => {
+    setSelectedTipo(tipo);
+    setPage(1);
   };
 
   const handleDelete = async () => {
@@ -152,15 +125,13 @@ export default function HistorialPage() {
     const ok = await eliminar(deleteTarget.id);
     if (ok) {
       toast.success("Registro eliminado");
-      fetchEntradas();
-      fetchSalidas();
+      fetchAsistencias(page, search || undefined, selectedDia || undefined, selectedTipo);
+      fetchCounts();
     } else {
       toast.error("Error al eliminar");
     }
     setDeleteTarget(null);
   };
-
-  const totalGeneral = (dataEntrada?.total ?? 0) + (dataSalida?.total ?? 0);
 
   return (
     <div>
@@ -170,23 +141,6 @@ export default function HistorialPage() {
           <p className="text-sm text-muted mt-0.5">{usuario?.eventoNombre}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-border shadow-sm text-sm">
-            <Users className="w-4 h-4 text-accent" />
-            <span className="font-bold text-primary">{totalGeneral}</span>
-            <span className="text-muted">total</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 rounded-lg border border-green-200">
-              <LogIn className="w-3.5 h-3.5 text-green-600" />
-              <span className="font-bold text-green-700">{dataEntrada?.total ?? 0}</span>
-              <span className="text-green-600 text-xs">entradas</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
-              <LogOut className="w-3.5 h-3.5 text-orange-500" />
-              <span className="font-bold text-orange-600">{dataSalida?.total ?? 0}</span>
-              <span className="text-orange-500 text-xs">salidas</span>
-            </div>
-          </div>
           <button
             onClick={handleActualizarNombres}
             disabled={updatingNames}
@@ -204,7 +158,35 @@ export default function HistorialPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      {/* Entrada / Salida toggle buttons with counts */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => handleTipoChange("entrada")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
+            selectedTipo === "entrada"
+              ? "bg-green-50 border-green-500 text-green-700 shadow-sm"
+              : "bg-white border-border text-muted hover:border-green-300 hover:text-green-600"
+          }`}
+        >
+          <LogIn className="w-4 h-4" />
+          <span className="text-lg">{countEntrada}</span>
+          <span className="text-xs font-medium">entradas</span>
+        </button>
+        <button
+          onClick={() => handleTipoChange("salida")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
+            selectedTipo === "salida"
+              ? "bg-orange-50 border-orange-500 text-orange-600 shadow-sm"
+              : "bg-white border-border text-muted hover:border-orange-300 hover:text-orange-500"
+          }`}
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="text-lg">{countSalida}</span>
+          <span className="text-xs font-medium">salidas</span>
+        </button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <form onSubmit={handleSearch} className="flex-1">
           <div className="flex items-center gap-2 bg-white border border-border rounded-xl px-4 py-2.5 shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 transition-all">
             <Search className="w-4 h-4 text-muted" />
@@ -216,7 +198,7 @@ export default function HistorialPage() {
               className="flex-1 bg-transparent outline-none text-sm"
             />
             {searchInput && (
-              <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setPageEntrada(1); setPageSalida(1); }} className="text-xs text-muted hover:text-ink">
+              <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }} className="text-xs text-muted hover:text-ink">
                 Limpiar
               </button>
             )}
@@ -241,66 +223,32 @@ export default function HistorialPage() {
         </div>
       </div>
 
-      {/* ENTRADAS Section */}
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-6">
-        <div className="px-4 py-3 bg-gradient-to-r from-green-700 to-green-600 text-white text-sm font-semibold uppercase tracking-wider flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <LogIn className="w-4 h-4" />
-            Registros de Entrada
-            {selectedDia > 0 && <span className="text-xs font-normal normal-case opacity-70">(Dia {selectedDia})</span>}
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{dataEntrada?.total ?? 0} registros</span>
-            {dataEntrada && <span className="text-xs opacity-60 font-normal normal-case">Pag {dataEntrada.page}/{dataEntrada.totalPages}</span>}
-          </span>
-        </div>
-        <div className="p-4">
-          {loadingEntrada ? (
-            <div className="text-center py-8 text-muted">Cargando entradas...</div>
-          ) : (
-            <AsistenciaTable registros={dataEntrada?.data ?? []} onDelete={(id, nombre) => setDeleteTarget({ id, nombre })} />
-          )}
-        </div>
-        {dataEntrada && dataEntrada.totalPages > 1 && (
-          <div className="px-4 pb-4">
-            <Pagination page={dataEntrada.page} totalPages={dataEntrada.totalPages} onPageChange={setPageEntrada} />
-          </div>
-        )}
-      </div>
-
-      {/* SALIDAS Section */}
       <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="px-4 py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white text-sm font-semibold uppercase tracking-wider flex items-center justify-between">
+        <div className={`px-4 py-3 text-white text-sm font-semibold uppercase tracking-wider flex items-center justify-between ${
+          selectedTipo === "entrada"
+            ? "bg-gradient-to-r from-green-700 to-green-600"
+            : "bg-gradient-to-r from-orange-600 to-orange-500"
+        }`}>
           <span className="flex items-center gap-2">
-            <LogOut className="w-4 h-4" />
-            Registros de Salida
+            {selectedTipo === "entrada" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+            Registros de {selectedTipo === "entrada" ? "Entrada" : "Salida"}
             {selectedDia > 0 && <span className="text-xs font-normal normal-case opacity-70">(Dia {selectedDia})</span>}
           </span>
           <span className="flex items-center gap-2">
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{dataSalida?.total ?? 0} registros</span>
-            {dataSalida && dataSalida.totalPages > 0 && <span className="text-xs opacity-60 font-normal normal-case">Pag {dataSalida.page}/{dataSalida.totalPages}</span>}
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{data?.total ?? 0} registros</span>
+            {data && <span className="text-xs opacity-60 font-normal normal-case">Pag {data.page}/{data.totalPages}</span>}
           </span>
         </div>
         <div className="p-4">
-          {loadingSalida ? (
-            <div className="text-center py-8 text-muted">Cargando salidas...</div>
-          ) : dataSalida && dataSalida.total === 0 ? (
-            <div className="text-center py-8 text-muted">
-              <LogOut className="w-8 h-8 mx-auto mb-2 text-orange-300" />
-              <p className="text-sm font-medium">Sin registros de salida</p>
-              <p className="text-xs mt-1">Los registros apareceran aqui cuando se registren salidas</p>
-            </div>
+          {loading ? (
+            <div className="text-center py-12 text-muted">Cargando...</div>
           ) : (
-            <AsistenciaTable registros={dataSalida?.data ?? []} onDelete={(id, nombre) => setDeleteTarget({ id, nombre })} />
+            <AsistenciaTable registros={data?.data ?? []} onDelete={(id, nombre) => setDeleteTarget({ id, nombre })} />
           )}
         </div>
-        {dataSalida && dataSalida.totalPages > 1 && (
-          <div className="px-4 pb-4">
-            <Pagination page={dataSalida.page} totalPages={dataSalida.totalPages} onPageChange={setPageSalida} />
-          </div>
-        )}
       </div>
 
+      {data && <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />}
       {deleteTarget && <DeleteModal nombre={deleteTarget.nombre} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />}
     </div>
   );
