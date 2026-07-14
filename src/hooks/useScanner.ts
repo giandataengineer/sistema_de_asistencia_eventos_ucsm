@@ -25,8 +25,7 @@ async function applyMaxQualityConstraints(containerId: string) {
       advanced.focusMode = "continuous";
     }
     if (capabilities.zoom) {
-      const minZoom = capabilities.zoom.min ?? 1;
-      advanced.zoom = Math.min(minZoom + 0.5, 1.5);
+      advanced.zoom = Math.min(capabilities.zoom.max, 2.5);
     }
 
     if (Object.keys(advanced).length > 0) {
