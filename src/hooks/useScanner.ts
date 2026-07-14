@@ -105,44 +105,65 @@ export function useScanner(options: UseScannerOptions = {}) {
     const onSuccess = (decodedText: string) => processRawData(decodedText);
     const onFailure = () => {};
 
+    // Intento 1: camara trasera forzada + alta resolucion
     try {
       await scanner.start(
-        { facingMode: modeToUse },
+        { facingMode: { exact: modeToUse } },
         {
           fps: 15,
           videoConstraints: {
-            width: { ideal: 3840, min: 1280 },
-            height: { ideal: 2160, min: 720 },
+            facingMode: { exact: modeToUse },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
             aspectRatio: { ideal: 16 / 9 },
             frameRate: { ideal: 30 },
-            advanced: [{ focusMode: "continuous", zoom: 2.0 }] as any,
           },
         },
         onSuccess,
         onFailure
       );
       await applyMaxQualityConstraints(containerIdRef.current);
+      return;
     } catch {
-      setScanning(false);
-      try {
-        await scanner.start(
-          { facingMode: modeToUse },
-          {
-            fps: 15,
-            videoConstraints: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-            },
+      // exact no soportado o fallo, intentar sin exact
+    }
+
+    // Intento 2: camara trasera preferida
+    try {
+      await scanner.start(
+        { facingMode: modeToUse },
+        {
+          fps: 15,
+          videoConstraints: {
+            facingMode: modeToUse,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
-          onSuccess,
-          onFailure
-        );
-        setScanning(true);
-        await applyMaxQualityConstraints(containerIdRef.current);
-      } catch (fallbackErr) {
-        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la camara";
-        options.onScanError?.(message);
-      }
+        },
+        onSuccess,
+        onFailure
+      );
+      setScanning(true);
+      await applyMaxQualityConstraints(containerIdRef.current);
+      return;
+    } catch {
+      // tampoco funciono
+    }
+
+    // Intento 3: cualquier camara
+    try {
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 15 },
+        onSuccess,
+        onFailure
+      );
+      setScanning(true);
+      await applyMaxQualityConstraints(containerIdRef.current);
+    } catch (finalErr) {
+      setScanning(false);
+      const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
+      options.onScanError?.(message);
     }
   }, [facingMode, options, processRawData]);
 
