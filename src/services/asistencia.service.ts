@@ -30,22 +30,6 @@ export const asistenciaService = {
     const dia = input.dia ?? await calcularDia(input.eventoId);
     const tipo = input.tipo ?? "entrada";
 
-    if (tipo === "salida") {
-      const tieneEntrada = await asistenciaRepository.findByDniEventoDiaTipo(
-        input.numeroDni,
-        input.eventoId,
-        dia,
-        "entrada"
-      );
-      if (!tieneEntrada || tieneEntrada.eliminado) {
-        return {
-          success: false,
-          error: "No se puede registrar SALIDA sin ENTRADA previa",
-          duplicado: false,
-        };
-      }
-    }
-
     const existente = await asistenciaRepository.findByDniEventoDiaTipo(
       input.numeroDni,
       input.eventoId,
