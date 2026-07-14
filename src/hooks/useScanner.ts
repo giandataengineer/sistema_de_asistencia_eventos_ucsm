@@ -11,15 +11,6 @@ interface UseScannerOptions {
   continuousMode?: boolean;
 }
 
-const BARCODE_FORMATS = [
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.PDF_417,
-];
-
 export function useScanner(options: UseScannerOptions = {}) {
   const [scanning, setScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
@@ -71,54 +62,41 @@ export function useScanner(options: UseScannerOptions = {}) {
     const modeToUse = forcedFacingMode || facingMode;
 
     const scanner = new Html5Qrcode(containerIdRef.current, {
-      formatsToSupport: BARCODE_FORMATS,
+      formatsToSupport: [Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE],
       useBarCodeDetectorIfSupported: true,
       verbose: false,
     });
     scannerRef.current = scanner;
     setScanning(true);
 
-    const onSuccess = (decodedText: string) => processRawData(decodedText);
-    const onFailure = () => {};
-
-    // Intento 1: exact facingMode (fuerza trasera/delantera)
-    try {
-      await scanner.start(
-        { facingMode: { exact: modeToUse } },
-        { fps: 10, videoConstraints: { facingMode: { exact: modeToUse }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-        onSuccess,
-        onFailure
-      );
-      return;
-    } catch {
-      // exact no soportado, intentar sin exact
-    }
-
-    // Intento 2: facingMode como preferencia (no exact)
     try {
       await scanner.start(
         { facingMode: modeToUse },
-        { fps: 10, videoConstraints: { facingMode: modeToUse } },
-        onSuccess,
-        onFailure
+        {
+          fps: 10,
+          videoConstraints: {
+            width: { ideal: 3840, min: 1920 },
+            height: { ideal: 2160, min: 1080 },
+            advanced: [{ focusMode: "continuous", zoom: 1.5 }] as any,
+          },
+        },
+        (decodedText) => processRawData(decodedText),
+        () => {}
       );
-      return;
     } catch {
-      // preferencia no funciono, intentar cualquier camara
-    }
-
-    // Intento 3: cualquier camara disponible
-    try {
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10 },
-        onSuccess,
-        onFailure
-      );
-    } catch (finalErr) {
       setScanning(false);
-      const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
-      options.onScanError?.(message);
+      try {
+        await scanner.start(
+          { facingMode: modeToUse },
+          { fps: 10, videoConstraints: { width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          (decodedText) => processRawData(decodedText),
+          () => {}
+        );
+        setScanning(true);
+      } catch (fallbackErr) {
+        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la camara";
+        options.onScanError?.(message);
+      }
     }
   }, [facingMode, options, processRawData]);
 
@@ -135,32 +113,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     };
   }, [stopScanner]);
 
-  const scanImageFile = useCallback(
-    async (file: File) => {
-      setScanning(true);
-      try {
-        const scanner = new Html5Qrcode(containerIdRef.current, {
-          formatsToSupport: BARCODE_FORMATS,
-          useBarCodeDetectorIfSupported: true,
-          verbose: false,
-        });
-        const decodedText = await scanner.scanFile(file, false);
-        processRawData(decodedText);
-      } catch {
-        options.onScanError?.("No se encontro ningun codigo de barras en la foto. Intente con otra.");
-      } finally {
-        setScanning(false);
-      }
-    },
-    [processRawData, options]
-  );
-
   return {
     scanning,
     startScanner,
     stopScanner,
     processRawData,
-    scanImageFile,
     toggleCamera,
     facingMode,
     containerId: containerIdRef.current,
