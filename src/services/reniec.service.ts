@@ -12,8 +12,12 @@ interface ReniecResponse {
 const cache = new Map<string, { data: ReniecResponse; timestamp: number }>();
 const CACHE_TTL = 1000 * 60 * 30;
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export const reniecService = {
-  async consultarDni(dni: string): Promise<{
+  async consultarDni(dni: string, retries = 2): Promise<{
     success: boolean;
     data?: {
       nombres: string;
@@ -38,33 +42,45 @@ export const reniecService = {
       };
     }
 
-    try {
-      const res = await fetch(`${RENIEC_API}?numero=${dni}`, {
-        signal: AbortSignal.timeout(3000),
-      });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        if (attempt > 0) await delay(1000 * attempt);
 
-      if (!res.ok) {
-        return { success: false, error: "DNI no encontrado en RENIEC" };
+        const res = await fetch(`${RENIEC_API}?numero=${dni}`, {
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (res.status === 429) {
+          if (attempt < retries) continue;
+          return { success: false, error: "RENIEC saturado, se reintentara despues" };
+        }
+
+        if (!res.ok) {
+          return { success: false, error: "DNI no encontrado en RENIEC" };
+        }
+
+        const json: ReniecResponse = await res.json();
+
+        if (!json.nombres && !json.apellidoPaterno) {
+          return { success: false, error: "No se encontraron datos para este DNI" };
+        }
+
+        cache.set(dni, { data: json, timestamp: Date.now() });
+
+        return {
+          success: true,
+          data: {
+            nombres: json.nombres || "",
+            apellidoPaterno: json.apellidoPaterno || "",
+            apellidoMaterno: json.apellidoMaterno || "",
+          },
+        };
+      } catch {
+        if (attempt < retries) continue;
+        return { success: false, error: "Error al consultar RENIEC" };
       }
-
-      const json: ReniecResponse = await res.json();
-
-      if (!json.nombres && !json.apellidoPaterno) {
-        return { success: false, error: "No se encontraron datos para este DNI" };
-      }
-
-      cache.set(dni, { data: json, timestamp: Date.now() });
-
-      return {
-        success: true,
-        data: {
-          nombres: json.nombres || "",
-          apellidoPaterno: json.apellidoPaterno || "",
-          apellidoMaterno: json.apellidoMaterno || "",
-        },
-      };
-    } catch {
-      return { success: false, error: "Error al consultar RENIEC. Intente de nuevo." };
     }
+
+    return { success: false, error: "Error al consultar RENIEC" };
   },
 };

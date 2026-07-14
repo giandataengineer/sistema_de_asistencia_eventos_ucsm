@@ -8,7 +8,7 @@ import ExportButtons from "@/components/asistencia/ExportButtons";
 import Pagination from "@/components/asistencia/Pagination";
 import DeleteModal from "@/components/asistencia/DeleteModal";
 import { toast } from "sonner";
-import { Search, Users, Calendar } from "lucide-react";
+import { Search, Users, Calendar, RefreshCw } from "lucide-react";
 
 const DAY_OPTIONS = [
   { value: 0, label: "Todos" },
@@ -26,6 +26,7 @@ export default function HistorialPage() {
   const [searchInput, setSearchInput] = useState("");
   const [selectedDia, setSelectedDia] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
+  const [updatingNames, setUpdatingNames] = useState(false);
 
   const { data, loading, fetchAsistencias, eliminar } = useAsistencias();
 
@@ -41,6 +42,26 @@ export default function HistorialPage() {
     },
     [searchInput]
   );
+
+  const handleActualizarNombres = async () => {
+    setUpdatingNames(true);
+    try {
+      const res = await fetch("/api/asistencias/actualizar-nombres", { method: "POST" });
+      const result = await res.json();
+      if (result.actualizados > 0) {
+        toast.success(`${result.actualizados} nombres actualizados de ${result.total} pendientes`);
+        fetchAsistencias(page, search || undefined, selectedDia || undefined);
+      } else if (result.total === 0) {
+        toast.info("No hay registros pendientes de actualizar");
+      } else {
+        toast.warning(`${result.fallidos} de ${result.total} no se pudieron actualizar (RENIEC no disponible)`);
+      }
+    } catch {
+      toast.error("Error al actualizar nombres");
+    } finally {
+      setUpdatingNames(false);
+    }
+  };
 
   const handleDiaChange = (dia: number) => {
     setSelectedDia(dia);
@@ -72,6 +93,14 @@ export default function HistorialPage() {
             <span className="font-bold text-primary">{data?.total ?? 0}</span>
             <span className="text-muted">total</span>
           </div>
+          <button
+            onClick={handleActualizarNombres}
+            disabled={updatingNames}
+            className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-border shadow-sm text-sm font-medium text-primary hover:bg-surface-alt transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${updatingNames ? "animate-spin" : ""}`} />
+            {updatingNames ? "Actualizando..." : "Actualizar Nombres"}
+          </button>
           {usuario && (
             <ExportButtons
               eventoNombre={usuario.eventoNombre}
