@@ -80,13 +80,13 @@ export function useScanner(options: UseScannerOptions = {}) {
 
     try {
       await scanner.start(
-        { facingMode: modeToUse },
+        { facingMode: { exact: modeToUse } },
         {
           fps: 10,
           videoConstraints: {
-            width: { ideal: 3840, min: 1920 },
-            height: { ideal: 2160, min: 1080 },
-            advanced: [{ focusMode: "continuous", zoom: 1.5 }] as any,
+            facingMode: { exact: modeToUse },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         },
         (decodedText) => processRawData(decodedText),
@@ -97,7 +97,7 @@ export function useScanner(options: UseScannerOptions = {}) {
       try {
         await scanner.start(
           { facingMode: modeToUse },
-          { fps: 10, videoConstraints: { width: { ideal: 1920 }, height: { ideal: 1080 } } },
+          { fps: 10, videoConstraints: { facingMode: modeToUse } },
           (decodedText) => processRawData(decodedText),
           () => {}
         );
