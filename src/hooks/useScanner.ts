@@ -25,10 +25,8 @@ async function applyMaxQualityConstraints(containerId: string) {
       advanced.focusMode = "continuous";
     }
     if (capabilities.zoom) {
-      advanced.zoom = Math.min(capabilities.zoom.max, 2.5);
-    }
-    if (capabilities.focusDistance) {
-      advanced.focusDistance = capabilities.focusDistance.min;
+      const minZoom = capabilities.zoom.min ?? 1;
+      advanced.zoom = Math.min(minZoom + 0.5, 1.5);
     }
 
     if (Object.keys(advanced).length > 0) {
@@ -105,46 +103,31 @@ export function useScanner(options: UseScannerOptions = {}) {
     const onSuccess = (decodedText: string) => processRawData(decodedText);
     const onFailure = () => {};
 
-    // Intento 1: camara trasera forzada + alta resolucion
+    const config = { fps: 15, qrbox: { width: 300, height: 150 } };
+
+    // Intento 1: camara trasera forzada
     try {
       await scanner.start(
         { facingMode: { exact: modeToUse } },
-        {
-          fps: 15,
-          videoConstraints: {
-            facingMode: { exact: modeToUse },
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
-            aspectRatio: { ideal: 16 / 9 },
-            frameRate: { ideal: 30 },
-          },
-        },
+        config,
         onSuccess,
         onFailure
       );
-      await applyMaxQualityConstraints(containerIdRef.current);
+      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
       return;
     } catch {
-      // exact no soportado o fallo, intentar sin exact
+      // exact no soportado, intentar sin exact
     }
 
     // Intento 2: camara trasera preferida
     try {
       await scanner.start(
         { facingMode: modeToUse },
-        {
-          fps: 15,
-          videoConstraints: {
-            facingMode: modeToUse,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        },
+        config,
         onSuccess,
         onFailure
       );
-      setScanning(true);
-      await applyMaxQualityConstraints(containerIdRef.current);
+      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
       return;
     } catch {
       // tampoco funciono
@@ -154,12 +137,11 @@ export function useScanner(options: UseScannerOptions = {}) {
     try {
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 15 },
+        config,
         onSuccess,
         onFailure
       );
-      setScanning(true);
-      await applyMaxQualityConstraints(containerIdRef.current);
+      setTimeout(() => applyMaxQualityConstraints(containerIdRef.current), 500);
     } catch (finalErr) {
       setScanning(false);
       const message = finalErr instanceof Error ? finalErr.message : "Error al acceder a la camara";
