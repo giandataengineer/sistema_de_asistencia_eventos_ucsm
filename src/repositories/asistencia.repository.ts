@@ -10,29 +10,32 @@ export const asistenciaRepository = {
         apellidoMaterno: data.apellidoMaterno,
         nombres: data.nombres,
         tipoDni: data.tipoDni,
+        dia: data.dia ?? 1,
         eventoId: data.eventoId,
         registradoPor: data.registradoPor,
       },
     });
   },
 
-  async findByDniAndEvento(numeroDni: string, eventoId: string) {
+  async findByDniEventoDia(numeroDni: string, eventoId: string, dia: number) {
     return prisma.asistencia.findFirst({
       where: {
         numeroDni,
         eventoId,
+        dia,
         eliminado: false,
       },
     });
   },
 
   async findAll(params: AsistenciaListParams) {
-    const { eventoId, page = 1, limit = 20, search } = params;
+    const { eventoId, page = 1, limit = 20, search, dia } = params;
     const skip = (page - 1) * limit;
 
     const where = {
       eventoId,
       eliminado: false,
+      ...(dia && { dia }),
       ...(search && {
         OR: [
           { numeroDni: { contains: search } },
@@ -62,10 +65,13 @@ export const asistenciaRepository = {
     };
   },
 
-  // Todos los registros sin paginar para exportacion
-  async findAllForExport(eventoId: string) {
+  async findAllForExport(eventoId: string, dia?: number) {
     return prisma.asistencia.findMany({
-      where: { eventoId, eliminado: false },
+      where: {
+        eventoId,
+        eliminado: false,
+        ...(dia && { dia }),
+      },
       orderBy: { fechaRegistro: "asc" },
     });
   },
@@ -84,5 +90,15 @@ export const asistenciaRepository = {
     return prisma.asistencia.count({
       where: { eventoId, eliminado: false },
     });
+  },
+
+  async getDistinctDias(eventoId: string): Promise<number[]> {
+    const result = await prisma.asistencia.findMany({
+      where: { eventoId, eliminado: false },
+      select: { dia: true },
+      distinct: ["dia"],
+      orderBy: { dia: "asc" },
+    });
+    return result.map((r) => r.dia);
   },
 };

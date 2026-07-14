@@ -1,50 +1,70 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { parsePDF417 } from "@/lib/pdf417-parser";
-import type { DatosDNI } from "@/interfaces/dni.interface";
-import { ScanBarcode, Loader2 } from "lucide-react";
+import { extractDniFromBarcode } from "@/lib/pdf417-parser";
+import { ScanBarcode, Loader2, CheckCircle2 } from "lucide-react";
 import { playBeep } from "@/lib/utils";
 
 interface ExternalScannerProps {
-  onScan: (datos: DatosDNI) => void;
+  onDniDetected: (dni: string) => void;
   onError: (error: string) => void;
   continuousMode?: boolean;
 }
 
 export default function ExternalScanner({
-  onScan,
+  onDniDetected,
   onError,
   continuousMode = false,
 }: ExternalScannerProps) {
   const [buffer, setBuffer] = useState("");
-  const [waiting, setWaiting] = useState(true);
+  const [status, setStatus] = useState<"waiting" | "detected">("waiting");
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastProcessedRef = useRef("");
 
-  const processInput = useCallback(
-    (raw: string) => {
-      const result = parsePDF417(raw);
+  const processBuffer = useCallback(
+    (value: string) => {
+      const result = extractDniFromBarcode(value);
+      if (result.success && result.dni) {
+        if (result.dni === lastProcessedRef.current) return;
+        lastProcessedRef.current = result.dni;
 
-      if (result.success && result.data) {
         if (navigator.vibrate) navigator.vibrate(200);
         playBeep();
-        onScan(result.data);
-      } else {
-        onError(result.error || "No se pudo leer el codigo");
-      }
+        setStatus("detected");
+        onDniDetected(result.dni);
 
-      setBuffer("");
-      if (continuousMode) {
-        setTimeout(() => inputRef.current?.focus(), 500);
+        setTimeout(() => {
+          setBuffer("");
+          setStatus("waiting");
+          lastProcessedRef.current = "";
+          inputRef.current?.focus();
+        }, 1500);
       }
     },
-    [onScan, onError, continuousMode]
+    [onDniDetected]
+  );
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value.replace(/\D/g, "");
+      setBuffer(value);
+
+      if (value.length === 8) {
+        processBuffer(value);
+      }
+    },
+    [processBuffer]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && buffer.trim()) {
       e.preventDefault();
-      processInput(buffer.trim());
+      const result = extractDniFromBarcode(buffer.trim());
+      if (result.success && result.dni) {
+        processBuffer(buffer.trim());
+      } else {
+        onError("DNI no valido. Debe contener 8 digitos.");
+      }
     }
   };
 
@@ -59,46 +79,46 @@ export default function ExternalScanner({
         <h3 className="font-semibold text-ink">Escaner Externo</h3>
       </div>
 
-      <div className="p-6 rounded-xl border-2 border-dashed border-accent/30 bg-accent/5
-        text-center">
+      <div className="p-6 rounded-xl border-2 border-dashed border-accent/30 bg-accent/5 text-center">
         <ScanBarcode className="w-10 h-10 mx-auto mb-3 text-accent/60" />
         <p className="text-sm text-ink-light mb-4">
-          Enfoque el escaner al codigo de barras del DNI.
-          El campo de texto recibira los datos automaticamente.
+          Escanee el codigo de barras del DNI. Se registrara automaticamente al detectar 8 digitos.
         </p>
 
         <input
           ref={inputRef}
           type="text"
+          inputMode="numeric"
           value={buffer}
-          onChange={(e) => {
-            setBuffer(e.target.value);
-            setWaiting(false);
-          }}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           onBlur={() => inputRef.current?.focus()}
           className="w-full px-4 py-3 rounded-xl border border-border bg-white
             focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none
-            transition-all text-sm text-center"
-          placeholder="Esperando lectura del escaner..."
+            transition-all text-sm text-center font-mono text-lg tracking-widest"
+          placeholder="Esperando lectura..."
+          maxLength={8}
           autoFocus
         />
 
         <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted">
-          {waiting ? (
+          {status === "waiting" ? (
             <>
               <Loader2 className="w-3 h-3 animate-spin" />
               <span>Esperando datos del escaner...</span>
             </>
           ) : (
-            <span>Datos recibidos. Presione Enter o escanee el siguiente DNI.</span>
+            <>
+              <CheckCircle2 className="w-3 h-3 text-accent" />
+              <span className="text-accent font-medium">DNI detectado. Consultando RENIEC...</span>
+            </>
           )}
         </div>
       </div>
 
       {continuousMode && (
         <p className="text-xs text-accent font-medium text-center">
-          Cola continua activa. El campo se limpia tras cada lectura exitosa.
+          Cola continua activa. Se registra automaticamente al detectar el DNI.
         </p>
       )}
     </div>

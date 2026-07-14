@@ -5,24 +5,29 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 interface ExportButtonsProps {
-  eventoId: string;
   eventoNombre: string;
+  dia?: number;
 }
 
-export default function ExportButtons({ eventoId, eventoNombre }: ExportButtonsProps) {
+export default function ExportButtons({ eventoNombre, dia }: ExportButtonsProps) {
+  const buildParams = () => {
+    const params = new URLSearchParams({ eventoNombre });
+    if (dia) params.set("dia", String(dia));
+    return params;
+  };
+
   const downloadCSV = () => {
-    const url = `/api/asistencias/exportar/csv?eventoId=${eventoId}`;
-    window.open(url, "_blank");
+    const params = buildParams();
+    window.open(`/api/asistencias/exportar/csv?${params}`, "_blank");
   };
 
   const downloadExcel = () => {
-    const params = new URLSearchParams({ eventoId, eventoNombre });
-    const url = `/api/asistencias/exportar/excel?${params}`;
-    window.open(url, "_blank");
+    const params = buildParams();
+    window.open(`/api/asistencias/exportar/excel?${params}`, "_blank");
   };
 
   const downloadPDF = async () => {
-    const params = new URLSearchParams({ eventoId, eventoNombre });
+    const params = buildParams();
     const res = await fetch(`/api/asistencias/exportar/pdf?${params}`);
     const data = await res.json();
 
@@ -49,7 +54,8 @@ export default function ExportButtons({ eventoId, eventoNombre }: ExportButtonsP
       alternateRowStyles: { fillColor: [242, 247, 244] },
     });
 
-    doc.save(`asistencia_${eventoId.substring(0, 8)}.pdf`);
+    const suffix = dia ? `_dia${dia}` : "";
+    doc.save(`asistencia${suffix}.pdf`);
   };
 
   return (

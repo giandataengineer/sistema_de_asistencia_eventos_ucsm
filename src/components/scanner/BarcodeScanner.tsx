@@ -1,24 +1,23 @@
 "use client";
 
 import { useScanner } from "@/hooks/useScanner";
-import type { DatosDNI } from "@/interfaces/dni.interface";
 import { X, Camera, Loader2, RefreshCw } from "lucide-react";
 
 interface BarcodeScannerProps {
-  onScan: (datos: DatosDNI) => void;
+  onDniDetected: (dni: string) => void;
   onError: (error: string) => void;
   onClose: () => void;
   continuousMode?: boolean;
 }
 
 export default function BarcodeScanner({
-  onScan,
+  onDniDetected,
   onError,
   onClose,
   continuousMode = false,
 }: BarcodeScannerProps) {
   const { scanning, startScanner, stopScanner, scanImageFile, toggleCamera, containerId } = useScanner({
-    onScanSuccess: onScan,
+    onDniDetected,
     onScanError: onError,
     continuousMode,
   });
@@ -53,11 +52,10 @@ export default function BarcodeScanner({
             <div className="text-center text-white/70 px-8">
               <p className="text-lg font-medium mb-2">Lector de DNI Peruano</p>
               <p className="text-sm">
-                Posicione el codigo de barras PDF417 del reverso del DNI
-                frente a la camara
+                Posicione el codigo de barras 1D del DNI frente a la camara
               </p>
             </div>
-            
+
             <div className="flex flex-col gap-4 w-full px-8">
               <button
                 onClick={() => startScanner()}
@@ -67,7 +65,7 @@ export default function BarcodeScanner({
                   hover:-translate-y-0.5 transition-all"
               >
                 <Camera className="w-5 h-5 inline-block mr-2" />
-                Iniciar Cámara en Vivo
+                Iniciar Camara en Vivo
               </button>
 
               <div className="relative w-full">
@@ -77,12 +75,10 @@ export default function BarcodeScanner({
                   capture="environment"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      scanImageFile(file);
-                    }
+                    if (file) scanImageFile(file);
                   }}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{ zIndex: 10 }} // Ensure it's clickable
+                  style={{ zIndex: 10 }}
                 />
                 <button
                   className="w-full py-3 rounded-xl font-bold text-accent border-2 border-accent
@@ -103,7 +99,7 @@ export default function BarcodeScanner({
               <button
                 onClick={toggleCamera}
                 className="p-3 bg-black/50 text-white rounded-full backdrop-blur-sm border border-white/20 hover:bg-black/70 transition-colors"
-                title="Cambiar Cámara"
+                title="Cambiar Camara"
               >
                 <RefreshCw className="w-6 h-6" />
               </button>
@@ -113,9 +109,7 @@ export default function BarcodeScanner({
                 className="relative w-[340px] h-[180px] border-2 border-accent/80 rounded-lg
                   shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] overflow-hidden"
               >
-                {/* Linea roja del escaner animada */}
                 <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_3px_rgba(239,68,68,0.8)] animate-scan-line" />
-
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap
                   bg-accent/90 text-primary-deep text-xs font-bold px-3 py-1 rounded-full">
                   Enfoque el codigo DNI dentro del recuadro

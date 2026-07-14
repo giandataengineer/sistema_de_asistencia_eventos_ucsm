@@ -11,15 +11,10 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const eventoId = searchParams.get("eventoId");
   const eventoNombre = searchParams.get("eventoNombre") || "Evento";
+  const dia = searchParams.get("dia");
+  const diaNum = dia ? parseInt(dia, 10) : undefined;
 
-  if (!eventoId) {
-    return NextResponse.json({ error: "eventoId requerido" }, { status: 400 });
-  }
-
-  // El PDF se genera del lado del cliente con jsPDF
-  // Esta ruta provee los datos estructurados
-  const data = await exportService.getDataForPDF(eventoId, eventoNombre);
+  const data = await exportService.getDataForPDF(session.eventoId, eventoNombre, diaNum);
   return NextResponse.json(data);
 }

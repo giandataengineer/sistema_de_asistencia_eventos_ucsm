@@ -11,19 +11,16 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const eventoId = searchParams.get("eventoId");
   const eventoNombre = searchParams.get("eventoNombre") || "Asistencia";
+  const dia = searchParams.get("dia");
+  const diaNum = dia ? parseInt(dia, 10) : undefined;
 
-  if (!eventoId) {
-    return NextResponse.json({ error: "eventoId requerido" }, { status: 400 });
-  }
-
-  const buffer = await exportService.generateExcel(eventoId, eventoNombre);
+  const buffer = await exportService.generateExcel(session.eventoId, eventoNombre, diaNum);
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename=asistencia_${eventoId.substring(0, 8)}.xlsx`,
+      "Content-Disposition": `attachment; filename=asistencia.xlsx`,
     },
   });
 }

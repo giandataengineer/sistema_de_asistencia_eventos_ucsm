@@ -2,19 +2,26 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { parsePDF417 } from "@/lib/pdf417-parser";
-import type { DatosDNI, ScanResult } from "@/interfaces/dni.interface";
+import { extractDniFromBarcode } from "@/lib/pdf417-parser";
 import { playBeep } from "@/lib/utils";
 
 interface UseScannerOptions {
-  onScanSuccess?: (datos: DatosDNI) => void;
+  onDniDetected?: (dni: string) => void;
   onScanError?: (error: string) => void;
   continuousMode?: boolean;
 }
 
+const BARCODE_FORMATS = [
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.PDF_417,
+];
+
 export function useScanner(options: UseScannerOptions = {}) {
   const [scanning, setScanning] = useState(false);
-  const [lastResult, setLastResult] = useState<ScanResult | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerIdRef = useRef(`scanner-${Math.random().toString(36).substring(2, 9)}`);
@@ -25,7 +32,7 @@ export function useScanner(options: UseScannerOptions = {}) {
       try {
         await scannerRef.current.stop();
       } catch {
-        // El scanner ya estaba detenido
+        // Already stopped
       }
       scannerRef.current = null;
     }
@@ -34,31 +41,25 @@ export function useScanner(options: UseScannerOptions = {}) {
 
   const processRawData = useCallback(
     (raw: string) => {
-      // Evitar procesar el mismo codigo dos veces seguidas
       if (raw === lastScannedRef.current) return;
       lastScannedRef.current = raw;
 
-      const result = parsePDF417(raw);
-      setLastResult(result);
+      const result = extractDniFromBarcode(raw);
 
-      if (result.success && result.data) {
-        // Vibracion haptica al detectar
+      if (result.success && result.dni) {
         if (navigator.vibrate) navigator.vibrate(200);
-        // Sonido de "Pip" como escáner real
         playBeep();
-
-        options.onScanSuccess?.(result.data);
+        options.onDniDetected?.(result.dni);
 
         if (!options.continuousMode) {
           stopScanner();
         } else {
-          // Limpiar despues de 2 segundos para permitir otro escaneo
           setTimeout(() => {
             lastScannedRef.current = "";
           }, 2000);
         }
       } else {
-        options.onScanError?.(result.error || "Error desconocido");
+        options.onScanError?.(result.error || "No se detecto un DNI valido");
       }
     },
     [options, stopScanner]
@@ -66,15 +67,13 @@ export function useScanner(options: UseScannerOptions = {}) {
 
   const startScanner = useCallback(async (forcedFacingMode?: "environment" | "user") => {
     lastScannedRef.current = "";
-    setLastResult(null);
 
     const modeToUse = forcedFacingMode || facingMode;
 
-    // Configuramos explícitamente el soporte para PDF417 (DNI)
     const scanner = new Html5Qrcode(containerIdRef.current, {
-      formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE ],
-      useBarCodeDetectorIfSupported: true, // Usa API nativa si está disponible (mucho más rápido)
-      verbose: false, // Requerido por TypeScript
+      formatsToSupport: BARCODE_FORMATS,
+      useBarCodeDetectorIfSupported: true,
+      verbose: false,
     });
     scannerRef.current = scanner;
     setScanning(true);
@@ -91,21 +90,20 @@ export function useScanner(options: UseScannerOptions = {}) {
           },
         },
         (decodedText) => processRawData(decodedText),
-        () => {} 
+        () => {}
       );
-    } catch (err) {
+    } catch {
       setScanning(false);
-      // Fallback: If advanced constraints failed, try again without advanced constraints
       try {
         await scanner.start(
           { facingMode: modeToUse },
           { fps: 10, videoConstraints: { width: { ideal: 1920 }, height: { ideal: 1080 } } },
           (decodedText) => processRawData(decodedText),
-          () => {} 
+          () => {}
         );
         setScanning(true);
       } catch (fallbackErr) {
-        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la cámara";
+        const message = fallbackErr instanceof Error ? fallbackErr.message : "Error al acceder a la camara";
         options.onScanError?.(message);
       }
     }
@@ -115,7 +113,6 @@ export function useScanner(options: UseScannerOptions = {}) {
     const newMode = facingMode === "environment" ? "user" : "environment";
     setFacingMode(newMode);
     await stopScanner();
-    // Restart scanner with new mode
     setTimeout(() => startScanner(newMode), 300);
   }, [facingMode, stopScanner, startScanner]);
 
@@ -130,14 +127,14 @@ export function useScanner(options: UseScannerOptions = {}) {
       setScanning(true);
       try {
         const scanner = new Html5Qrcode(containerIdRef.current, {
-          formatsToSupport: [ Html5QrcodeSupportedFormats.PDF_417, Html5QrcodeSupportedFormats.QR_CODE ],
+          formatsToSupport: BARCODE_FORMATS,
           useBarCodeDetectorIfSupported: true,
           verbose: false,
         });
         const decodedText = await scanner.scanFile(file, false);
         processRawData(decodedText);
-      } catch (err) {
-        options.onScanError?.("No se encontró ningún código de barras en la foto. Intente con otra.");
+      } catch {
+        options.onScanError?.("No se encontro ningun codigo de barras en la foto. Intente con otra.");
       } finally {
         setScanning(false);
       }
@@ -147,7 +144,6 @@ export function useScanner(options: UseScannerOptions = {}) {
 
   return {
     scanning,
-    lastResult,
     startScanner,
     stopScanner,
     processRawData,

@@ -21,7 +21,6 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
 
   return (
     <>
-      {/* Vista desktop */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -29,7 +28,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">N</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">DNI</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Apellidos y Nombres</th>
-              <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Tipo</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Dia</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Fecha</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Hora</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Accion</th>
@@ -48,15 +47,9 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                   <td className="px-3 py-2.5 text-muted">{i + 1}</td>
                   <td className="px-3 py-2.5 font-mono font-medium">{r.numeroDni}</td>
                   <td className="px-3 py-2.5">{nombreCompleto}</td>
-                  <td className="px-3 py-2.5">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        r.tipoDni === "azul"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-emerald-100 text-emerald-700"
-                      }`}
-                    >
-                      {r.tipoDni === "azul" ? "Azul" : "Electronico"}
+                  <td className="px-3 py-2.5 text-center">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                      {r.dia}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-muted">{formatDatePeru(new Date(r.fechaRegistro))}</td>
@@ -78,7 +71,6 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
         </table>
       </div>
 
-      {/* Vista mobile con cards */}
       <div className="md:hidden space-y-3">
         {registros.map((r, i) => {
           const nombreCompleto = [r.apellidoPaterno, r.apellidoMaterno, r.nombres]
@@ -96,14 +88,8 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                   <p className="text-xs text-muted mt-0.5 font-mono">{r.numeroDni}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      r.tipoDni === "azul"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-emerald-100 text-emerald-700"
-                    }`}
-                  >
-                    {r.tipoDni === "azul" ? "Azul" : "E"}
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                    Dia {r.dia}
                   </span>
                   <button
                     onClick={() => onDelete(r.id, nombreCompleto)}

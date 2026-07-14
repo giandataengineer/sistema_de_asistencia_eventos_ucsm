@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { asistenciaService } from "@/services/asistencia.service";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,16 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    const asistencia = await prisma.asistencia.findUnique({
+      where: { id },
+      select: { eventoId: true },
+    });
+
+    if (!asistencia || asistencia.eventoId !== session.eventoId) {
+      return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+    }
+
     await asistenciaService.eliminar(id);
     return NextResponse.json({ message: "Registro eliminado" });
   } catch {

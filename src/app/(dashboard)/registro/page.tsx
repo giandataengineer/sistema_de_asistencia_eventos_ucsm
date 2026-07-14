@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useAsistencias } from "@/hooks/useAsistencias";
 import BarcodeScanner from "@/components/scanner/BarcodeScanner";
@@ -8,7 +8,6 @@ import ManualInput from "@/components/scanner/ManualInput";
 import ExternalScanner from "@/components/scanner/ExternalScanner";
 import AsistenciaTable from "@/components/asistencia/AsistenciaTable";
 import DeleteModal from "@/components/asistencia/DeleteModal";
-import type { DatosDNI } from "@/interfaces/dni.interface";
 import { toast } from "sonner";
 import {
   Camera,
@@ -35,63 +34,66 @@ export default function RegistroPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successName, setSuccessName] = useState("");
+  const [dniLoading, setDniLoading] = useState(false);
+  const [lastManualResult, setLastManualResult] = useState<{ nombre: string; success: boolean } | null>(null);
+  const processingRef = useRef(false);
 
-  const { data, fetchAsistencias, registrar, eliminar } = useAsistencias({
-    eventoId: usuario?.eventoId ?? "",
-  });
+  const { data, fetchAsistencias, registrar, eliminar, consultarDni } = useAsistencias();
 
   useEffect(() => {
-    if (usuario?.eventoId) fetchAsistencias(1);
-  }, [fetchAsistencias, usuario?.eventoId]);
+    fetchAsistencias(1);
+  }, [fetchAsistencias]);
 
-  const handleScan = useCallback(
-    async (datos: DatosDNI) => {
-      const result = await registrar({
-        numeroDni: datos.numeroDNI,
-        apellidoPaterno: datos.apellidoPaterno,
-        apellidoMaterno: datos.apellidoMaterno,
-        nombres: datos.nombres,
-        tipoDni: datos.tipoDNI,
-      });
+  const handleDniDetected = useCallback(
+    async (dni: string) => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      setDniLoading(true);
+      setLastManualResult(null);
 
-      if (result.success) {
-        toast.success(`${datos.apellidoPaterno} ${datos.nombres} registrado`, { duration: 2000 });
-        setSuccessName(`${datos.nombres} ${datos.apellidoPaterno}`);
-        setShowSuccessModal(true);
-        setTimeout(() => setShowSuccessModal(false), 1500);
-        fetchAsistencias(1);
-      } else if (result.duplicado) {
-        toast.warning(result.error, { duration: 3000 });
-      } else {
-        toast.error(result.error || "Error al registrar");
+      try {
+        const reniecResult = await consultarDni(dni);
+
+        if (!reniecResult.success) {
+          toast.error(reniecResult.error || "No se pudo consultar el DNI en RENIEC");
+          setLastManualResult({ nombre: reniecResult.error || "DNI no encontrado", success: false });
+          return;
+        }
+
+        const { nombres, apellidoPaterno, apellidoMaterno } = reniecResult.data;
+
+        const regResult = await registrar({
+          numeroDni: dni,
+          apellidoPaterno,
+          apellidoMaterno: apellidoMaterno || null,
+          nombres,
+          tipoDni: "electronico",
+        });
+
+        if (regResult.success) {
+          const nombreCompleto = `${nombres} ${apellidoPaterno}`;
+          toast.success(`${apellidoPaterno} ${nombres} registrado`, { duration: 2000 });
+          setSuccessName(nombreCompleto);
+          setShowSuccessModal(true);
+          setLastManualResult({ nombre: `${nombreCompleto} - Registrado`, success: true });
+          setTimeout(() => setShowSuccessModal(false), 1500);
+          fetchAsistencias(1);
+        } else if (regResult.duplicado) {
+          toast.warning(regResult.error, { duration: 3000 });
+          setLastManualResult({ nombre: regResult.error || "Ya registrado hoy", success: false });
+        } else {
+          toast.error(regResult.error || "Error al registrar");
+          setLastManualResult({ nombre: regResult.error || "Error al registrar", success: false });
+        }
+      } catch {
+        toast.error("Error de conexion. Intente nuevamente.");
+        setLastManualResult({ nombre: "Error de conexion", success: false });
+      } finally {
+        setDniLoading(false);
+        processingRef.current = false;
       }
     },
-    [registrar, fetchAsistencias]
-  );
-
-  const handleManualSubmit = useCallback(
-    async (form: { numeroDni: string; apellidoPaterno: string; apellidoMaterno: string; nombres: string }) => {
-      const result = await registrar({
-        numeroDni: form.numeroDni,
-        apellidoPaterno: form.apellidoPaterno,
-        apellidoMaterno: form.apellidoMaterno || null,
-        nombres: form.nombres,
-        tipoDni: "electronico",
-      });
-
-      if (result.success) {
-        toast.success(`${form.apellidoPaterno} ${form.nombres} registrado`);
-        setSuccessName(`${form.nombres} ${form.apellidoPaterno}`);
-        setShowSuccessModal(true);
-        setTimeout(() => setShowSuccessModal(false), 1500);
-        fetchAsistencias(1);
-      } else if (result.duplicado) {
-        toast.warning(result.error);
-      } else {
-        toast.error(result.error || "Error al registrar");
-      }
-    },
-    [registrar, fetchAsistencias]
+    [consultarDni, registrar, fetchAsistencias]
   );
 
   const handleDelete = async () => {
@@ -111,7 +113,7 @@ export default function RegistroPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-primary tracking-tight">Registrar Asistencia</h1>
-          <p className="text-sm text-muted mt-0.5">Escanee el DNI o ingrese los datos manualmente</p>
+          <p className="text-sm text-muted mt-0.5">Escanee el DNI o ingrese los 8 digitos manualmente</p>
         </div>
         <div className="flex items-center gap-4 px-4 py-2.5 bg-white rounded-xl border border-border shadow-sm">
           <Users className="w-5 h-5 text-accent" />
@@ -161,9 +163,19 @@ export default function RegistroPage() {
           </button>
         )}
 
-        {mode === "manual" && <ManualInput onSubmit={handleManualSubmit} />}
+        {mode === "manual" && (
+          <ManualInput
+            onDniDetected={handleDniDetected}
+            loading={dniLoading}
+            lastResult={lastManualResult}
+          />
+        )}
         {mode === "external" && (
-          <ExternalScanner onScan={handleScan} onError={(err) => toast.error(err)} continuousMode={continuousMode} />
+          <ExternalScanner
+            onDniDetected={handleDniDetected}
+            onError={(err) => toast.error(err)}
+            continuousMode={continuousMode}
+          />
         )}
       </div>
 
@@ -177,17 +189,22 @@ export default function RegistroPage() {
       </div>
 
       {showScanner && (
-        <BarcodeScanner onScan={handleScan} onError={(err) => toast.error(err)} onClose={() => setShowScanner(false)} continuousMode={continuousMode} />
+        <BarcodeScanner
+          onDniDetected={handleDniDetected}
+          onError={(err) => toast.error(err)}
+          onClose={() => setShowScanner(false)}
+          continuousMode={continuousMode}
+        />
       )}
       {deleteTarget && <DeleteModal nombre={deleteTarget.nombre} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />}
-      
+
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-accent/20 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-primary/90 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-50 duration-300 border border-accent/30">
             <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center animate-bounce shadow-[0_0_40px_rgba(0,230,118,0.6)]">
-              <span className="text-primary text-5xl font-black">✓</span>
+              <span className="text-primary text-5xl font-black">&#10003;</span>
             </div>
-            <h2 className="text-4xl font-black text-accent tracking-wider uppercase drop-shadow-md">¡Registrado!</h2>
+            <h2 className="text-4xl font-black text-accent tracking-wider uppercase drop-shadow-md">Registrado!</h2>
             {successName && (
               <p className="text-white text-xl font-medium mt-2">{successName}</p>
             )}

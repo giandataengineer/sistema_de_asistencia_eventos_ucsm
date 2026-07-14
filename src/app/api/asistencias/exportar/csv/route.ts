@@ -10,12 +10,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const eventoId = new URL(request.url).searchParams.get("eventoId");
-  if (!eventoId) {
-    return NextResponse.json({ error: "eventoId requerido" }, { status: 400 });
-  }
+  const dia = new URL(request.url).searchParams.get("dia");
+  const diaNum = dia ? parseInt(dia, 10) : undefined;
 
-  const csv = await exportService.generateCSV(eventoId);
+  const csv = await exportService.generateCSV(session.eventoId, diaNum);
 
   return new NextResponse(csv, {
     headers: {

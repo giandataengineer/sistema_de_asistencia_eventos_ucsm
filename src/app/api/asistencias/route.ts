@@ -12,23 +12,17 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const eventoId = searchParams.get("eventoId");
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "20", 10);
   const search = searchParams.get("search") || undefined;
-
-  if (!eventoId) {
-    return NextResponse.json(
-      { error: "El eventoId es obligatorio" },
-      { status: 400 }
-    );
-  }
+  const dia = searchParams.get("dia") ? parseInt(searchParams.get("dia")!, 10) : undefined;
 
   const result = await asistenciaService.listar({
-    eventoId,
+    eventoId: session.eventoId,
     page,
     limit,
     search,
+    dia,
   });
 
   return NextResponse.json(result);
@@ -42,13 +36,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const parsed = createAsistenciaSchema.safeParse(body);
+
+    const parsed = createAsistenciaSchema.safeParse({
+      ...body,
+      eventoId: session.eventoId,
+    });
 
     if (!parsed.success) {
-      const issues = parsed.error.issues ?? parsed.error;
-      const msg = Array.isArray(issues) ? issues[0]?.message : "Datos invalidos";
+      const firstIssue = parsed.error.issues?.[0];
       return NextResponse.json(
-        { error: msg || "Datos invalidos" },
+        { error: firstIssue?.message || "Datos invalidos" },
         { status: 400 }
       );
     }
