@@ -52,20 +52,24 @@ export default function RegistroPage() {
       setLastManualResult(null);
 
       try {
+        let nombres = "POR ACTUALIZAR";
+        let apellidoPaterno = "POR ACTUALIZAR";
+        let apellidoMaterno: string | null = null;
+
         const reniecResult = await consultarDni(dni);
 
-        if (!reniecResult.success) {
-          toast.error(reniecResult.error || "No se pudo consultar el DNI en RENIEC");
-          setLastManualResult({ nombre: reniecResult.error || "DNI no encontrado", success: false });
-          return;
+        if (reniecResult.success && reniecResult.data) {
+          nombres = reniecResult.data.nombres;
+          apellidoPaterno = reniecResult.data.apellidoPaterno;
+          apellidoMaterno = reniecResult.data.apellidoMaterno || null;
+        } else {
+          toast.warning("RENIEC no disponible. Registrando solo con DNI.", { duration: 3000 });
         }
-
-        const { nombres, apellidoPaterno, apellidoMaterno } = reniecResult.data;
 
         const regResult = await registrar({
           numeroDni: dni,
           apellidoPaterno,
-          apellidoMaterno: apellidoMaterno || null,
+          apellidoMaterno,
           nombres,
           tipoDni: "electronico",
         });
