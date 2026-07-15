@@ -8,15 +8,20 @@ import ExportButtons from "@/components/asistencia/ExportButtons";
 import Pagination from "@/components/asistencia/Pagination";
 import DeleteModal from "@/components/asistencia/DeleteModal";
 import { toast } from "sonner";
-import { Search, Calendar, RefreshCw, LogIn, LogOut } from "lucide-react";
+import { Search, ClipboardList, RefreshCw, LogIn, LogOut } from "lucide-react";
 
-const DAY_OPTIONS = [
+const REG_OPTIONS = [
   { value: 0, label: "Todos" },
-  { value: 1, label: "Dia 1" },
-  { value: 2, label: "Dia 2" },
-  { value: 3, label: "Dia 3" },
-  { value: 4, label: "Dia 4" },
-  { value: 5, label: "Dia 5" },
+  { value: 1, label: "1° Reg" },
+  { value: 2, label: "2° Reg" },
+  { value: 3, label: "3° Reg" },
+  { value: 4, label: "4° Reg" },
+  { value: 5, label: "5° Reg" },
+  { value: 6, label: "6° Reg" },
+  { value: 7, label: "7° Reg" },
+  { value: 8, label: "8° Reg" },
+  { value: 9, label: "9° Reg" },
+  { value: 10, label: "10° Reg" },
 ];
 
 export default function HistorialPage() {
@@ -206,8 +211,8 @@ export default function HistorialPage() {
         </form>
 
         <div className="flex items-center gap-1 p-1 bg-white border border-border rounded-xl shadow-sm overflow-x-auto">
-          <Calendar className="w-4 h-4 text-muted ml-2 flex-shrink-0" />
-          {DAY_OPTIONS.map((opt) => (
+          <ClipboardList className="w-4 h-4 text-muted ml-2 flex-shrink-0" />
+          {REG_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => handleDiaChange(opt.value)}
@@ -232,7 +237,7 @@ export default function HistorialPage() {
           <span className="flex items-center gap-2">
             {selectedTipo === "entrada" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
             Registros de {selectedTipo === "entrada" ? "Entrada" : "Salida"}
-            {selectedDia > 0 && <span className="text-xs font-normal normal-case opacity-70">(Dia {selectedDia})</span>}
+            {selectedDia > 0 && <span className="text-xs font-normal normal-case opacity-70">({selectedDia}° Registro)</span>}
           </span>
           <span className="flex items-center gap-2">
             <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{data?.total ?? 0} registros</span>

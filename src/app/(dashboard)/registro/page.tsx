@@ -18,10 +18,18 @@ import {
   ToggleRight,
   LogIn,
   LogOut,
+  Plus,
+  Trash2,
+  ClipboardList,
 } from "lucide-react";
 
 type ScanMode = "camera" | "manual" | "external";
 type TipoRegistro = "entrada" | "salida";
+
+interface RegistroModule {
+  id: number;
+  label: string;
+}
 
 const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { mode: "camera", label: "Camara", icon: Camera },
@@ -31,6 +39,8 @@ const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ cl
 
 export default function RegistroPage() {
   const { usuario } = useAuth();
+  const [modules, setModules] = useState<RegistroModule[]>([{ id: 1, label: "1° Registro de Asistencia" }]);
+  const [activeModuleId, setActiveModuleId] = useState(1);
   const [mode, setMode] = useState<ScanMode>("camera");
   const [tipoRegistro, setTipoRegistro] = useState<TipoRegistro>("entrada");
   const [continuousMode, setContinuousMode] = useState(false);
@@ -45,8 +55,8 @@ export default function RegistroPage() {
   const { data, fetchAsistencias, registrar, eliminar, consultarDni } = useAsistencias();
 
   useEffect(() => {
-    fetchAsistencias(1, undefined, undefined, tipoRegistro);
-  }, [fetchAsistencias, tipoRegistro]);
+    fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
+  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -55,22 +65,57 @@ export default function RegistroPage() {
         if (res.ok) {
           const result = await res.json();
           if (result.actualizados > 0) {
-            fetchAsistencias(1, undefined, undefined, tipoRegistro);
+            fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
           }
         }
       } catch {
-        // silencioso en background
+        // silencioso
       }
     }, 45000);
     return () => clearInterval(interval);
-  }, [fetchAsistencias, tipoRegistro]);
+  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1, undefined, undefined, tipoRegistro), 1500);
-  }, [fetchAsistencias, tipoRegistro]);
+    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1, undefined, activeModuleId, tipoRegistro), 1500);
+  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
+
+  const handleAddModule = () => {
+    if (modules.length >= 10) {
+      toast.warning("Maximo 10 registros de asistencia");
+      return;
+    }
+    const nextNum = modules.length + 1;
+    const newModule: RegistroModule = {
+      id: nextNum,
+      label: `${nextNum}° Registro de Asistencia`,
+    };
+    setModules([...modules, newModule]);
+    setActiveModuleId(nextNum);
+    setTipoRegistro("entrada");
+    toast.success(`${newModule.label} agregado`);
+  };
+
+  const handleRemoveModule = (moduleId: number) => {
+    if (modules.length <= 1) {
+      toast.warning("Debe haber al menos un registro");
+      return;
+    }
+    const updated = modules.filter((m) => m.id !== moduleId);
+    const renumbered = updated.map((m, i) => ({
+      ...m,
+      id: i + 1,
+      label: `${i + 1}° Registro de Asistencia`,
+    }));
+    setModules(renumbered);
+    if (activeModuleId === moduleId) {
+      setActiveModuleId(renumbered[0].id);
+    } else if (activeModuleId > moduleId) {
+      setActiveModuleId(activeModuleId - 1);
+    }
+  };
 
   const handleDniDetected = useCallback(
     async (dni: string) => {
@@ -89,10 +134,11 @@ export default function RegistroPage() {
           nombres: "Registrando",
           tipoDni: "electronico",
           tipo: tipoRegistro,
+          dia: activeModuleId,
         });
 
         if (regResult.success) {
-          toast.success(`${tipoLabel} - DNI ${dni}`, { duration: 1200 });
+          toast.success(`${tipoLabel} - DNI ${dni} (${activeModuleId}° Reg)`, { duration: 1200 });
           setSuccessName(`${tipoLabel} - ${dni}`);
           setShowSuccessModal(true);
           setLastManualResult({ nombre: `DNI ${dni} - ${tipoLabel}`, success: true });
@@ -125,7 +171,7 @@ export default function RegistroPage() {
         processingRef.current = false;
       }
     },
-    [consultarDni, registrar, debouncedRefresh, tipoRegistro]
+    [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId]
   );
 
   const handleDelete = async () => {
@@ -133,30 +179,75 @@ export default function RegistroPage() {
     const ok = await eliminar(deleteTarget.id);
     if (ok) {
       toast.success("Registro eliminado");
-      fetchAsistencias(1, undefined, undefined, tipoRegistro);
+      fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
     } else {
       toast.error("Error al eliminar");
     }
     setDeleteTarget(null);
   };
 
+  const activeModule = modules.find((m) => m.id === activeModuleId);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-primary tracking-tight">Registrar Asistencia</h1>
-          <p className="text-sm text-muted mt-0.5">Escanee el DNI o ingrese los 8 digitos manualmente</p>
+          <p className="text-sm text-muted mt-0.5">{usuario?.eventoNombre}</p>
         </div>
         <div className="flex items-center gap-4 px-4 py-2.5 bg-white rounded-xl border border-border shadow-sm">
           <Users className="w-5 h-5 text-accent" />
           <div>
             <p className="text-2xl font-bold text-primary leading-none">{data?.total ?? 0}</p>
-            <p className="text-[0.65rem] text-muted uppercase tracking-wider">Asistentes</p>
+            <p className="text-[0.65rem] text-muted uppercase tracking-wider">{tipoRegistro === "entrada" ? "Entradas" : "Salidas"} ({activeModuleId}° Reg)</p>
           </div>
         </div>
       </div>
 
+      {/* Modules selector */}
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-2 items-center">
+          {modules.map((mod) => (
+            <div key={mod.id} className="relative group">
+              <button
+                onClick={() => { setActiveModuleId(mod.id); setTipoRegistro("entrada"); }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
+                  activeModuleId === mod.id
+                    ? "bg-primary text-accent border-primary shadow-lg scale-105"
+                    : "bg-white text-muted border-border hover:border-primary/50 hover:text-primary"
+                }`}
+              >
+                <ClipboardList className="w-4 h-4" />
+                {mod.label}
+              </button>
+              {modules.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemoveModule(mod.id); }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          {modules.length < 10 && (
+            <button
+              onClick={handleAddModule}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 border-dashed border-border text-sm font-medium text-muted hover:border-accent hover:text-accent transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Agregar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active module registration area */}
       <div className="bg-white rounded-xl border border-border shadow-sm p-4 mb-6">
+        <div className="text-center mb-3">
+          <h2 className="text-lg font-bold text-primary">{activeModule?.label}</h2>
+        </div>
+
         {/* Entrada / Salida toggle */}
         <div className="flex items-center gap-2 p-1 bg-surface-alt rounded-lg mb-4">
           <button
@@ -239,8 +330,16 @@ export default function RegistroPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="px-4 py-3 bg-gradient-to-r from-primary to-primary-mid text-accent text-sm font-semibold uppercase tracking-wider">
-          Ultimos Registros
+        <div className={`px-4 py-3 text-white text-sm font-semibold uppercase tracking-wider flex items-center justify-between ${
+          tipoRegistro === "entrada"
+            ? "bg-gradient-to-r from-green-700 to-green-600"
+            : "bg-gradient-to-r from-orange-600 to-orange-500"
+        }`}>
+          <span className="flex items-center gap-2">
+            {tipoRegistro === "entrada" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+            {activeModule?.label} - {tipoRegistro === "entrada" ? "Entradas" : "Salidas"}
+          </span>
+          <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{data?.total ?? 0}</span>
         </div>
         <div className="p-4">
           <AsistenciaTable registros={data?.data ?? []} onDelete={(id, nombre) => setDeleteTarget({ id, nombre })} />

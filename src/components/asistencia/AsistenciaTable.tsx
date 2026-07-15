@@ -59,7 +59,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">DNI</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Apellidos y Nombres</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Tipo</th>
-              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Dia</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Reg</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Hora</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Permanencia</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Accion</th>
@@ -142,7 +142,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                     {r.tipo === "salida" ? "Salida" : "Entrada"}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
-                    D{r.dia}
+                    {r.dia}°
                   </span>
                   <button
                     onClick={() => onDelete(r.id, nombreCompleto)}
