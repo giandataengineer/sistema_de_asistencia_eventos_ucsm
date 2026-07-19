@@ -130,8 +130,14 @@ export const asistenciaRepository = {
       prisma.asistencia.count({ where: { eventoId, eliminado: false } }),
       prisma.asistencia.count({ where: { eventoId, eliminado: false, tipo: "entrada" } }),
       prisma.asistencia.count({ where: { eventoId, eliminado: false, tipo: "salida" } }),
-      prisma.asistencia.count({ where: { eventoId, eliminado: false, etiqueta: "participante" } }),
-      prisma.asistencia.count({ where: { eventoId, eliminado: false, etiqueta: "organizador" } }),
+      prisma.$queryRaw`
+        SELECT COUNT(DISTINCT numero_dni)::int AS total FROM asistencias
+        WHERE evento_id = ${eventoId} AND eliminado = false AND etiqueta = 'participante'
+      `.then((r: unknown) => (r as Array<{ total: number }>)[0]?.total ?? 0),
+      prisma.$queryRaw`
+        SELECT COUNT(DISTINCT numero_dni)::int AS total FROM asistencias
+        WHERE evento_id = ${eventoId} AND eliminado = false AND etiqueta = 'organizador'
+      `.then((r: unknown) => (r as Array<{ total: number }>)[0]?.total ?? 0),
       prisma.asistencia.findMany({
         where: { eventoId, eliminado: false },
         select: { numeroDni: true },

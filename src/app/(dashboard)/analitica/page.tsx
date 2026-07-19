@@ -14,8 +14,6 @@ import {
   Loader2,
   LogIn,
   LogOut,
-  CalendarDays,
-  BarChart3,
   Award,
 } from "lucide-react";
 
@@ -81,30 +79,42 @@ interface AnalyticsData {
   ultimosRegistros: UltimoRegistro[];
 }
 
-function HBarInline({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div className="flex items-center gap-2 flex-1">
-      <span className="text-sm font-semibold text-ink w-12 text-right tabular-nums">{value.toLocaleString()}</span>
-      <div className="flex-1 h-5 bg-surface-alt rounded overflow-hidden">
-        <div className={`h-full rounded ${color} transition-all`} style={{ width: `${Math.max(pct, 1)}%` }} />
-      </div>
-    </div>
-  );
-}
+const COLORS = {
+  emerald: { bar: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-500/20" },
+  cyan: { bar: "bg-cyan-500", bg: "bg-cyan-50", text: "text-cyan-600", ring: "ring-cyan-500/20" },
+  rose: { bar: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-600", ring: "ring-rose-500/20" },
+  violet: { bar: "bg-violet-500", bg: "bg-violet-50", text: "text-violet-600", ring: "ring-violet-500/20" },
+  amber: { bar: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-600", ring: "ring-amber-500/20" },
+  blue: { bar: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-600", ring: "ring-blue-500/20" },
+};
 
-function SparkBars({ data, color }: { data: number[]; color: string }) {
+function SparkArea({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return null;
   const max = Math.max(...data, 1);
+  const w = 200;
+  const h = 48;
+  const pad = 2;
+  const step = (w - pad * 2) / (data.length - 1);
+
+  const points = data.map((v, i) => ({
+    x: pad + i * step,
+    y: h - pad - ((v / max) * (h - pad * 2)),
+  }));
+
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const area = `${line} L${points[points.length - 1].x},${h} L${points[0].x},${h} Z`;
+
   return (
-    <div className="flex items-end gap-[3px] h-16 mt-3">
-      {data.map((val, i) => (
-        <div
-          key={i}
-          className={`flex-1 rounded-t ${color} transition-all opacity-80 hover:opacity-100`}
-          style={{ height: `${Math.max((val / max) * 100, 3)}%` }}
-        />
-      ))}
-    </div>
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12 mt-2" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#grad-${color})`} className={color} />
+      <path d={line} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={color} />
+    </svg>
   );
 }
 
@@ -126,8 +136,8 @@ export default function AnaliticaPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
       </div>
     );
   }
@@ -139,156 +149,144 @@ export default function AnaliticaPage() {
   const { kpis, distribucionPorDia, distribucionPorSesion, distribucionPorHora, distribucionPorDiaSesion, topAsistentes, ultimosRegistros } = analytics;
 
   const hourlyValues = distribucionPorHora.map((h) => h.total);
-  const sessionValues = distribucionPorSesion.map((s) => s.total);
-  const maxDiaEntrada = Math.max(...distribucionPorDia.map((d) => d.entradas), 1);
-  const maxDiaSalida = Math.max(...distribucionPorDia.map((d) => d.salidas), 1);
-  const maxDiaOverall = Math.max(maxDiaEntrada, maxDiaSalida, 1);
-  const maxTopRegistros = Math.max(...topAsistentes.map((t) => t.registros), 1);
+  const maxHourly = Math.max(...hourlyValues, 1);
+  const maxDia = Math.max(...distribucionPorDia.map((d) => Math.max(d.entradas, d.salidas)), 1);
+  const maxTop = Math.max(...topAsistentes.map((t) => t.registros), 1);
   const maxDiaSesion = Math.max(...distribucionPorDiaSesion.map((ds) => ds.total), 1);
 
   return (
-    <div className="space-y-6 max-w-[1400px]">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-primary tracking-tight">Dashboard de Asistencia</h1>
-          <p className="text-sm text-muted mt-0.5">{usuario?.eventoNombre}</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted bg-white border border-border rounded-lg px-3 py-2 shadow-sm">
-          <CalendarDays className="w-3.5 h-3.5" />
-          <span>Dia 1 — Dia {distribucionPorDia.length || 2}</span>
-        </div>
-      </div>
-
-      {/* KPI Cards Row — 3 cards with sparklines like the reference */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Entradas card */}
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted uppercase tracking-wider">Total Entradas</p>
-              <p className="text-3xl font-bold text-ink mt-1">{kpis.totalEntradas.toLocaleString()}</p>
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-              <ArrowUpRight className="w-3 h-3" />
-              {kpis.tasaRetencion}%
-            </div>
-          </div>
-          <SparkBars data={hourlyValues.length > 0 ? hourlyValues : [0]} color="bg-emerald-400" />
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
-            <div>
-              <p className="text-[0.65rem] text-muted">Asistentes Unicos</p>
-              <p className="text-sm font-bold text-ink">{kpis.asistentesUnicos}</p>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-muted">Participantes</p>
-              <p className="text-sm font-bold text-ink">{kpis.participantes}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Salidas card */}
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted uppercase tracking-wider">Total Salidas</p>
-              <p className="text-3xl font-bold text-ink mt-1">{kpis.totalSalidas.toLocaleString()}</p>
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
-              <ArrowDownRight className="w-3 h-3" />
-              {kpis.totalEntradas > 0 ? Math.round((kpis.totalSalidas / kpis.totalEntradas) * 100) : 0}%
-            </div>
-          </div>
-          <SparkBars data={sessionValues.length > 0 ? sessionValues : [0]} color="bg-cyan-400" />
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
-            <div>
-              <p className="text-[0.65rem] text-muted">Total Registros</p>
-              <p className="text-sm font-bold text-ink">{kpis.totalRegistros.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-muted">Tasa Retencion</p>
-              <p className="text-sm font-bold text-ink">{kpis.tasaRetencion}%</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Organizadores card */}
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted uppercase tracking-wider">Organizadores</p>
-              <p className="text-3xl font-bold text-ink mt-1">{kpis.organizadores}</p>
-            </div>
-            <div className="flex items-center gap-1 text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-              <UserCheck className="w-3 h-3" />
-              Comision
-            </div>
-          </div>
-          <SparkBars data={distribucionPorDia.map((d) => d.entradas)} color="bg-rose-400" />
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
-            <div>
-              <p className="text-[0.65rem] text-muted">Dias del Evento</p>
-              <p className="text-sm font-bold text-ink">{distribucionPorDia.length}</p>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-muted">Sesiones</p>
-              <p className="text-sm font-bold text-ink">{distribucionPorSesion.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Asistencia por Dia — horizontal bars like the reference */}
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-bold text-ink">Asistencia por Dia</h2>
-        </div>
-        <div className="p-5">
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="grid grid-cols-[60px_1fr_1fr] gap-4 text-[0.65rem] font-medium text-muted uppercase tracking-wider">
-              <span>Dia</span>
-              <span>Entradas</span>
-              <span>Salidas</span>
-            </div>
-            {distribucionPorDia.map((d) => (
-              <div key={d.dia} className="grid grid-cols-[60px_1fr_1fr] gap-4 items-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                    D{d.dia}
-                  </div>
-                </div>
-                <HBarInline value={d.entradas} max={maxDiaOverall} color="bg-emerald-400" />
-                <HBarInline value={d.salidas} max={maxDiaOverall} color="bg-cyan-400" />
+    <div className="space-y-5 max-w-[1400px] mx-auto">
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: "Total Entradas",
+            value: kpis.totalEntradas.toLocaleString(),
+            sub: `${kpis.asistentesUnicos} asistentes unicos`,
+            change: `${kpis.tasaRetencion}%`,
+            changeUp: true,
+            icon: LogIn,
+            c: COLORS.emerald,
+            sparkData: distribucionPorDia.map((d) => d.entradas),
+          },
+          {
+            label: "Total Salidas",
+            value: kpis.totalSalidas.toLocaleString(),
+            sub: `${kpis.totalRegistros.toLocaleString()} registros totales`,
+            change: `${kpis.totalEntradas > 0 ? Math.round((kpis.totalSalidas / kpis.totalEntradas) * 100) : 0}%`,
+            changeUp: false,
+            icon: LogOut,
+            c: COLORS.cyan,
+            sparkData: distribucionPorDia.map((d) => d.salidas),
+          },
+          {
+            label: "Participantes",
+            value: kpis.participantes.toLocaleString(),
+            sub: `${distribucionPorDia.length} dias del evento`,
+            change: `${distribucionPorSesion.length} sesiones`,
+            changeUp: true,
+            icon: Users,
+            c: COLORS.rose,
+            sparkData: distribucionPorSesion.map((s) => s.total),
+          },
+          {
+            label: "Organizadores",
+            value: kpis.organizadores.toString(),
+            sub: "Comision organizadora",
+            change: "Activos",
+            changeUp: true,
+            icon: UserCheck,
+            c: COLORS.violet,
+            sparkData: hourlyValues.length > 1 ? hourlyValues : [1, 1],
+          },
+        ].map((card) => (
+          <div key={card.label} className="bg-white rounded-2xl border border-border/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[0.7rem] font-medium text-muted tracking-wide">{card.label}</p>
+              <div className={`w-8 h-8 rounded-xl ${card.c.bg} flex items-center justify-center`}>
+                <card.icon className={`w-4 h-4 ${card.c.text}`} />
               </div>
-            ))}
+            </div>
+            <p className="text-[1.75rem] font-extrabold text-ink leading-tight tracking-tight">{card.value}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`inline-flex items-center gap-0.5 text-[0.65rem] font-semibold ${card.changeUp ? "text-emerald-600" : "text-orange-500"}`}>
+                {card.changeUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {card.change}
+              </span>
+              <span className="text-[0.6rem] text-muted">{card.sub}</span>
+            </div>
+            <SparkArea data={card.sparkData} color={card.c.text} />
           </div>
+        ))}
+      </div>
+
+      {/* Asistencia por Dia */}
+      <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <h2 className="text-[0.9rem] font-bold text-ink">Asistencia por Dia</h2>
+          <div className="flex items-center gap-4 text-[0.65rem]">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Entradas</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-cyan-500" /> Salidas</span>
+          </div>
+        </div>
+        <div className="px-6 pb-5 space-y-3">
+          {distribucionPorDia.map((d) => (
+            <div key={d.dia} className="flex items-center gap-4">
+              <div className="w-16 flex-shrink-0">
+                <span className="text-sm font-bold text-ink">Dia {d.dia}</span>
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-6 bg-gray-50 rounded-md overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-md transition-all" style={{ width: `${(d.entradas / maxDia) * 100}%` }} />
+                  </div>
+                  <span className="text-xs font-bold text-ink w-14 text-right tabular-nums">{d.entradas.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-6 bg-gray-50 rounded-md overflow-hidden">
+                    <div className="h-full bg-cyan-500 rounded-md transition-all" style={{ width: `${(d.salidas / maxDia) * 100}%` }} />
+                  </div>
+                  <span className="text-xs font-bold text-ink w-14 text-right tabular-nums">{d.salidas.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top Asistentes — horizontal bars with avatars like the reference */}
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Award className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Top Asistentes</h2>
-            <span className="ml-auto text-[0.65rem] text-muted">por sesiones registradas</span>
+        {/* Top Asistentes */}
+        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <h2 className="text-[0.9rem] font-bold text-ink">Top Asistentes</h2>
+            <span className="text-[0.6rem] text-muted">por sesiones registradas</span>
           </div>
-          <div className="p-5 space-y-3">
+          <div className="px-6 pb-5 space-y-2.5">
             {topAsistentes.map((a, idx) => (
-              <div key={a.dni} className="flex items-center gap-3">
-                <span className="text-xs text-muted w-5 text-right">{idx + 1}.</span>
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-mid flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0">
+              <div key={a.dni} className="flex items-center gap-3 group">
+                <span className="text-[0.65rem] text-muted w-4 text-right tabular-nums">{idx + 1}.</span>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0 ${
+                  a.etiqueta === "organizador"
+                    ? "bg-gradient-to-br from-violet-500 to-purple-600"
+                    : "bg-gradient-to-br from-blue-500 to-indigo-600"
+                }`}>
                   {a.apellido.substring(0, 2).toUpperCase()}
                 </div>
-                <div className="flex-shrink-0 w-28 truncate">
-                  <p className="text-xs font-medium text-ink truncate">{a.apellido} {a.nombres.split(" ")[0]}</p>
-                  <p className="text-[0.6rem] text-muted">{a.dni}</p>
+                <div className="w-32 flex-shrink-0">
+                  <p className="text-xs font-semibold text-ink truncate leading-tight">{a.apellido}</p>
+                  <p className="text-[0.6rem] text-muted truncate">{a.nombres.split(" ")[0]} · {a.dni}</p>
                 </div>
-                <HBarInline value={a.registros} max={maxTopRegistros} color={a.etiqueta === "organizador" ? "bg-purple-400" : "bg-blue-400"} />
-                <span className={`text-[0.55rem] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                  a.etiqueta === "organizador" ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="flex-1 h-5 bg-gray-50 rounded overflow-hidden">
+                    <div
+                      className={`h-full rounded transition-all ${a.etiqueta === "organizador" ? "bg-violet-500" : "bg-blue-500"}`}
+                      style={{ width: `${(a.registros / maxTop) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-ink w-8 text-right tabular-nums">{a.registros}</span>
+                </div>
+                <span className={`text-[0.55rem] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                  a.etiqueta === "organizador" ? "bg-violet-50 text-violet-600" : "bg-blue-50 text-blue-600"
                 }`}>
                   {a.etiqueta === "organizador" ? "ORG" : "PART"}
                 </span>
@@ -297,62 +295,54 @@ export default function AnaliticaPage() {
           </div>
         </div>
 
-        {/* Distribucion Dia × Sesion — matrix/heatmap style */}
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Desglose Dia × Sesion</h2>
+        {/* Dia × Sesion */}
+        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4">
+            <h2 className="text-[0.9rem] font-bold text-ink">Desglose Dia × Sesion</h2>
           </div>
-          <div className="p-5">
-            <div className="space-y-2">
-              <div className="grid grid-cols-[60px_1fr_80px] gap-3 text-[0.65rem] font-medium text-muted uppercase tracking-wider">
-                <span>Sesion</span>
-                <span>Asistentes</span>
-                <span className="text-right">Total</span>
-              </div>
-              {distribucionPorDiaSesion.map((ds) => (
-                <div key={`${ds.dia}-${ds.sesion}`} className="grid grid-cols-[60px_1fr_80px] gap-3 items-center py-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[0.6rem] font-medium text-muted">D{ds.dia}</span>
-                    <span className="text-xs font-semibold text-ink">S{ds.sesion}</span>
-                  </div>
-                  <div className="h-6 bg-surface-alt rounded overflow-hidden">
-                    <div
-                      className="h-full rounded bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
-                      style={{ width: `${Math.max((ds.total / maxDiaSesion) * 100, 2)}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-semibold text-ink text-right tabular-nums">{ds.total}</span>
+          <div className="px-6 pb-5 space-y-2">
+            {distribucionPorDiaSesion.map((ds) => (
+              <div key={`${ds.dia}-${ds.sesion}`} className="flex items-center gap-3 py-0.5">
+                <div className="w-16 flex-shrink-0 flex items-center gap-1.5">
+                  <span className="text-[0.6rem] font-medium text-muted bg-gray-100 rounded px-1.5 py-0.5">D{ds.dia}</span>
+                  <span className="text-xs font-bold text-ink">S{ds.sesion}</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex-1 h-5 bg-gray-50 rounded overflow-hidden">
+                  <div
+                    className="h-full rounded bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all"
+                    style={{ width: `${Math.max((ds.total / maxDiaSesion) * 100, 2)}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-ink w-10 text-right tabular-nums">{ds.total}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Distribucion Horaria — full width bar chart */}
+      {/* Distribucion Horaria */}
       {distribucionPorHora.length > 0 && (
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Clock className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Distribucion Horaria</h2>
-            <span className="ml-auto text-[0.65rem] text-muted">Hora de registro (UTC)</span>
+        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <h2 className="text-[0.9rem] font-bold text-ink">Distribucion Horaria</h2>
+            <span className="text-[0.6rem] text-muted">Hora de registro (UTC)</span>
           </div>
-          <div className="p-5">
-            <div className="flex items-end gap-[6px] h-32">
+          <div className="px-6 pb-5">
+            <div className="flex items-end gap-1 h-36">
               {distribucionPorHora.map((h) => {
-                const max = Math.max(...hourlyValues, 1);
-                const pct = (h.total / max) * 100;
+                const pct = (h.total / maxHourly) * 100;
                 return (
-                  <div key={h.hora} className="flex-1 flex flex-col items-center gap-1 group">
-                    <span className="text-[0.6rem] font-medium text-ink opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div key={h.hora} className="flex-1 flex flex-col items-center gap-1 group cursor-default">
+                    <span className="text-[0.6rem] font-bold text-ink opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
                       {h.total}
                     </span>
-                    <div
-                      className="w-full rounded-t bg-gradient-to-t from-blue-500 to-blue-400 group-hover:from-blue-600 group-hover:to-blue-500 transition-all"
-                      style={{ height: `${Math.max(pct, 3)}%` }}
-                    />
-                    <span className="text-[0.55rem] text-muted">{String(h.hora).padStart(2, "0")}h</span>
+                    <div className="w-full relative">
+                      <div
+                        className="w-full rounded-t-md bg-gradient-to-t from-indigo-500 to-blue-400 group-hover:from-indigo-600 group-hover:to-blue-500 transition-all"
+                        style={{ height: `${Math.max(pct, 3)}%`, minHeight: "4px", paddingTop: `${Math.max(pct, 3)}%` }}
+                      />
+                    </div>
+                    <span className="text-[0.5rem] text-muted tabular-nums">{String(h.hora).padStart(2, "0")}</span>
                   </div>
                 );
               })}
@@ -361,38 +351,31 @@ export default function AnaliticaPage() {
         </div>
       )}
 
-      {/* Data Quality + Pipeline Summary */}
+      {/* Bottom row: Data Quality + Pipeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <Database className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Calidad de Datos</h2>
+        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-2">
+            <Database className="w-4 h-4 text-violet-500" />
+            <h2 className="text-[0.9rem] font-bold text-ink">Calidad de Datos</h2>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="px-6 pb-5 space-y-4">
             {[
-              { label: "Completitud", value: kpis.totalRegistros > 0 ? 100 : 0, desc: "Registros con datos completos" },
-              { label: "Consistencia", value: kpis.totalEntradas >= kpis.totalSalidas ? 100 : 85, desc: "Entradas >= Salidas por sesion" },
+              { label: "Completitud", value: kpis.totalRegistros > 0 ? 100 : 0, color: "from-emerald-400 to-green-500" },
+              { label: "Consistencia", value: kpis.totalEntradas >= kpis.totalSalidas ? 100 : 85, color: "from-cyan-400 to-teal-500" },
               {
                 label: "Cobertura",
                 value: kpis.asistentesUnicos > 0 ? Math.min(Math.round((kpis.totalEntradas / kpis.asistentesUnicos) * 100), 100) : 0,
-                desc: "Promedio registros por asistente",
+                color: "from-blue-400 to-indigo-500",
               },
             ].map((m) => (
               <div key={m.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div>
-                    <span className="text-sm font-medium text-ink">{m.label}</span>
-                    <span className="text-[0.6rem] text-muted ml-2">{m.desc}</span>
-                  </div>
-                  <span className={`text-sm font-bold tabular-nums ${m.value >= 90 ? "text-green-600" : m.value >= 70 ? "text-yellow-600" : "text-red-500"}`}>
-                    {m.value}%
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-ink">{m.label}</span>
+                  <span className="text-sm font-extrabold text-ink tabular-nums">{m.value}%</span>
                 </div>
-                <div className="h-2.5 bg-surface-alt rounded-full overflow-hidden">
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${
-                      m.value >= 90 ? "bg-gradient-to-r from-green-400 to-emerald-500" : m.value >= 70 ? "bg-gradient-to-r from-yellow-400 to-amber-500" : "bg-gradient-to-r from-red-400 to-rose-500"
-                    }`}
+                    className={`h-full rounded-full bg-gradient-to-r ${m.color} transition-all`}
                     style={{ width: `${m.value}%` }}
                   />
                 </div>
@@ -401,84 +384,81 @@ export default function AnaliticaPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Resumen del Pipeline</h2>
+        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-500" />
+            <h2 className="text-[0.9rem] font-bold text-ink">Resumen del Pipeline</h2>
           </div>
-          <div className="p-5">
-            <div className="space-y-0">
-              {[
-                { label: "Fuente de datos", value: "Escaner DNI (PDF417)" },
-                { label: "Registros procesados", value: kpis.totalRegistros.toLocaleString() },
-                { label: "DNIs unicos validados", value: kpis.asistentesUnicos.toLocaleString() },
-                { label: "Organizadores", value: `${kpis.organizadores} miembros` },
-                { label: "Dias cubiertos", value: `${distribucionPorDia.length} dias` },
-                { label: "Sesiones registradas", value: `${distribucionPorSesion.length} sesiones` },
-                { label: "Estado", value: "Operativo", isStatus: true },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
-                  <span className="text-xs text-muted">{item.label}</span>
-                  {"isStatus" in item ? (
-                    <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                      {item.value}
-                    </span>
-                  ) : (
-                    <span className="text-xs font-semibold text-ink">{item.value}</span>
-                  )}
-                </div>
-              ))}
+          <div className="px-6 pb-5">
+            {[
+              { label: "Fuente de datos", value: "Escaner DNI (PDF417)" },
+              { label: "Registros procesados", value: kpis.totalRegistros.toLocaleString() },
+              { label: "DNIs unicos", value: kpis.asistentesUnicos.toLocaleString() },
+              { label: "Organizadores", value: `${kpis.organizadores} miembros` },
+              { label: "Dias cubiertos", value: `${distribucionPorDia.length}` },
+              { label: "Sesiones", value: `${distribucionPorSesion.length}` },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+                <span className="text-xs text-muted">{item.label}</span>
+                <span className="text-xs font-bold text-ink">{item.value}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-xs text-muted">Estado</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Operativo
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Ultimos Registros — clean table */}
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+      {/* Ultimos Registros */}
+      <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-ink">Ultimos Registros</h2>
+            <Activity className="w-4 h-4 text-rose-500" />
+            <h2 className="text-[0.9rem] font-bold text-ink">Ultimos Registros</h2>
           </div>
-          <span className="text-[0.65rem] text-muted">Tiempo real</span>
+          <span className="text-[0.6rem] text-muted bg-gray-100 px-2 py-1 rounded-full">Tiempo real</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-surface-alt/50">
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">#</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">DNI</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">Nombre</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">Tipo</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">Etiqueta</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">Dia / Sesion</th>
-                <th className="px-5 py-2.5 text-left font-medium text-muted text-xs">Hora</th>
+              <tr className="border-b border-gray-100">
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">#</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">DNI</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Nombre</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Tipo</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Etiqueta</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Sesion</th>
+                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Hora</th>
               </tr>
             </thead>
             <tbody>
               {ultimosRegistros.map((r, idx) => (
-                <tr key={idx} className="border-b border-border/30 hover:bg-surface-alt/30 transition-colors">
-                  <td className="px-5 py-3 text-xs text-muted">{idx + 1}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-ink">{r.numeroDni}</td>
-                  <td className="px-5 py-3 text-xs font-medium text-ink">{r.apellidoPaterno} {r.nombres.split(" ")[0]}</td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-medium ${
-                      r.tipo === "entrada" ? "bg-green-50 text-green-700" : "bg-orange-50 text-orange-700"
+                <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-xs text-muted tabular-nums">{idx + 1}</td>
+                  <td className="px-6 py-3.5 font-mono text-xs font-medium text-ink">{r.numeroDni}</td>
+                  <td className="px-6 py-3.5 text-xs font-semibold text-ink">{r.apellidoPaterno} {r.nombres.split(" ")[0]}</td>
+                  <td className="px-6 py-3.5">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.6rem] font-semibold ${
+                      r.tipo === "entrada" ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700"
                     }`}>
                       {r.tipo === "entrada" ? <LogIn className="w-3 h-3" /> : <LogOut className="w-3 h-3" />}
                       {r.tipo === "entrada" ? "Entrada" : "Salida"}
                     </span>
                   </td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[0.65rem] font-medium ${
-                      r.etiqueta === "organizador" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
+                  <td className="px-6 py-3.5">
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-[0.6rem] font-semibold ${
+                      r.etiqueta === "organizador" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"
                     }`}>
                       {r.etiqueta === "organizador" ? "Organizador" : "Participante"}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-xs text-muted">D{r.dia} · S{r.sesion}</td>
-                  <td className="px-5 py-3 text-xs text-muted">
+                  <td className="px-6 py-3.5 text-xs text-muted">D{r.dia} · S{r.sesion}</td>
+                  <td className="px-6 py-3.5 text-xs text-muted tabular-nums">
                     {new Date(r.fechaRegistro).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </td>
                 </tr>
