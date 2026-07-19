@@ -154,27 +154,48 @@ function DiaSesionCard({ data, maxTotal }: { data: DiaSesionDistribucion[]; maxT
   );
 }
 
-function PermanenciaCard({ data }: { data: Permanencia[] }) {
-  if (data.length === 0) return null;
+function PermanenciaCard({ data, allSessions }: { data: Permanencia[]; allSessions: DiaSesionDistribucion[] }) {
+  if (allSessions.length === 0) return null;
+
+  const permMap = new Map(data.map((p) => [`${p.dia}-${p.sesion}`, p]));
+  const chartData = data.length >= 2 ? data : [];
+
   return (
-    <ChartCard title="Permanencia (Salida - Entrada)" badge="Solo sesiones con entrada y salida" icon={Clock} iconColor="text-amber-500">
-      <LineChart
-        data={data.map((p) => p.promedioMin)}
-        xLabels={data.map((p) => `D${p.dia}S${p.sesion}`)}
-        color="#f59e0b"
-        height={200}
-      />
+    <ChartCard title="Permanencia (Salida - Entrada)" badge="Entrada + Salida requeridos" icon={Clock} iconColor="text-amber-500">
+      {chartData.length >= 2 && (
+        <LineChart
+          data={chartData.map((p) => p.promedioMin)}
+          xLabels={chartData.map((p) => `D${p.dia}S${p.sesion}`)}
+          color="#f59e0b"
+          height={200}
+        />
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
-        {data.map((p) => (
-          <div key={`perm-${p.dia}-${p.sesion}`} className="bg-amber-50/50 rounded-xl p-3 border border-amber-100/60">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[0.6rem] font-medium text-muted bg-white rounded px-1.5 py-0.5">D{p.dia}</span>
-              <span className="text-xs font-bold text-ink">S{p.sesion}</span>
+        {allSessions.map((ds) => {
+          const p = permMap.get(`${ds.dia}-${ds.sesion}`);
+          if (p) {
+            return (
+              <div key={`perm-${ds.dia}-${ds.sesion}`} className="bg-amber-50/50 rounded-xl p-3 border border-amber-100/60">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[0.6rem] font-medium text-muted bg-white rounded px-1.5 py-0.5">D{ds.dia}</span>
+                  <span className="text-xs font-bold text-ink">S{ds.sesion}</span>
+                </div>
+                <p className="text-lg font-extrabold text-amber-700 tabular-nums">{p.promedioMin} min</p>
+                <p className="text-[0.6rem] text-muted mt-0.5">{p.pares} pares · {p.minMin}-{p.maxMin} min</p>
+              </div>
+            );
+          }
+          return (
+            <div key={`perm-${ds.dia}-${ds.sesion}`} className="bg-gray-50/50 rounded-xl p-3 border border-gray-200/60">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[0.6rem] font-medium text-muted bg-white rounded px-1.5 py-0.5">D{ds.dia}</span>
+                <span className="text-xs font-bold text-ink">S{ds.sesion}</span>
+              </div>
+              <p className="text-sm font-semibold text-gray-400">No corresponde</p>
+              <p className="text-[0.6rem] text-muted mt-0.5">Solo entrada registrada</p>
             </div>
-            <p className="text-lg font-extrabold text-amber-700 tabular-nums">{p.promedioMin} min</p>
-            <p className="text-[0.6rem] text-muted mt-0.5">{p.pares} pares · {p.minMin}-{p.maxMin} min</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </ChartCard>
   );
@@ -309,7 +330,7 @@ export default function AnaliticaPage() {
         <DiaSesionCard data={distribucionPorDiaSesion} maxTotal={Math.max(...distribucionPorDiaSesion.map((ds) => ds.total), 1)} />
       </div>
 
-      <PermanenciaCard data={permanencia} />
+      <PermanenciaCard data={permanencia} allSessions={distribucionPorDiaSesion} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Calidad de Datos" icon={TrendingUp} iconColor="text-violet-500">
