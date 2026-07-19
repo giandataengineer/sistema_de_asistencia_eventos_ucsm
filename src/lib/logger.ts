@@ -21,10 +21,29 @@ function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[MIN_LEVEL];
 }
 
+const SENSITIVE_KEYS = new Set([
+  "password", "passwordHash", "token", "secret", "authorization",
+  "cookie", "jwt", "apiKey", "api_key", "accessToken", "refreshToken",
+]);
+
+function maskSensitive(data: Record<string, unknown>): Record<string, unknown> {
+  const masked: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      masked[key] = "[REDACTED]";
+    } else if (typeof value === "string" && value.length > 200) {
+      masked[key] = `${value.slice(0, 50)}...[truncated]`;
+    } else {
+      masked[key] = value;
+    }
+  }
+  return masked;
+}
+
 function formatEntry(entry: LogEntry): string {
   const base = `[${entry.timestamp}] ${entry.level.toUpperCase()} ${entry.context ? `[${entry.context}]` : ""} ${entry.message}`;
   if (entry.data && Object.keys(entry.data).length > 0) {
-    return `${base} ${JSON.stringify(entry.data)}`;
+    return `${base} ${JSON.stringify(maskSensitive(entry.data))}`;
   }
   return base;
 }

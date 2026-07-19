@@ -2,9 +2,10 @@ import { SignJWT, jwtVerify } from "jose";
 import type { JWTPayload } from "@/interfaces/usuario.interface";
 import { cookies } from "next/headers";
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ucsm-asistencia-secret-change-in-production"
-);
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required");
+}
+const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET);
 const TOKEN_NAME = "ucsm_asistencia_token";
 const TOKEN_EXPIRY = "8h";
 

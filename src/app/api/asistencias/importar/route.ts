@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { apiGuard, isGuardError } from "@/lib/api-guard";
+import { handleApiError } from "@/lib/api-response";
+import { RATE_LIMITS } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -16,11 +18,10 @@ interface ImportRecord {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request, { rateLimit: RATE_LIMITS.write });
+  if (isGuardError(guard)) return guard;
 
+  try {
   const { registros, offset = 0 } = (await request.json()) as {
     registros: ImportRecord[];
     offset?: number;
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     const existente = await prisma.asistencia.findFirst({
       where: {
         numeroDni: r.numeroDni,
-        eventoId: session.eventoId,
+        eventoId: guard.session.eventoId,
         dia: r.dia,
         tipo: "entrada",
       },
@@ -78,8 +79,8 @@ export async function POST(request: NextRequest) {
           tipoDni: "electronico",
           dia: r.dia,
           tipo: "entrada",
-          eventoId: session.eventoId,
-          registradoPor: session.sub,
+          eventoId: guard.session.eventoId,
+          registradoPor: guard.session.sub,
           fechaRegistro,
         },
       });
@@ -99,4 +100,7 @@ export async function POST(request: NextRequest) {
     restantes: registros.length - procesados,
     terminado,
   });
+  } catch (err) {
+    return handleApiError(err, "POST /api/asistencias/importar");
+  }
 }

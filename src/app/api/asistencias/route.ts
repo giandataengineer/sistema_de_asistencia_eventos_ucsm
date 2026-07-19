@@ -1,27 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { asistenciaService } from "@/services/asistencia.service";
 import { createAsistenciaSchema } from "@/validators/asistencia.validator";
+import { apiGuard, isGuardError } from "@/lib/api-guard";
+import { handleApiError } from "@/lib/api-response";
+import { RATE_LIMITS } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
+const MAX_LIMIT = 100;
+
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request);
+  if (isGuardError(guard)) return guard;
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "20", 10);
-  const search = searchParams.get("search") || undefined;
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
+  const search = searchParams.get("search")?.trim().slice(0, 100) || undefined;
   const dia = searchParams.get("dia") ? parseInt(searchParams.get("dia")!, 10) : undefined;
   const sesion = searchParams.get("sesion") ? parseInt(searchParams.get("sesion")!, 10) : undefined;
   const tipo = searchParams.get("tipo") || undefined;
   const etiqueta = searchParams.get("etiqueta") || undefined;
 
   const result = await asistenciaService.listar({
-    eventoId: session.eventoId,
+    eventoId: guard.session.eventoId,
     page,
     limit,
     search,
@@ -35,17 +37,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request, { rateLimit: RATE_LIMITS.write });
+  if (isGuardError(guard)) return guard;
 
   try {
     const body = await request.json();
 
     const parsed = createAsistenciaSchema.safeParse({
       ...body,
-      eventoId: session.eventoId,
+      eventoId: guard.session.eventoId,
     });
 
     if (!parsed.success) {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await asistenciaService.registrar(parsed.data, session.sub);
+    const result = await asistenciaService.registrar(parsed.data, guard.session.sub);
 
     if (!result.success) {
       return NextResponse.json(
@@ -67,11 +67,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result.data, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error al registrar asistencia";
-    console.error("POST /api/asistencias error:", message);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return handleApiError(err, "POST /api/asistencias");
   }
 }

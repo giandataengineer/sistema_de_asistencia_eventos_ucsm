@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { apiGuard, isGuardError } from "@/lib/api-guard";
+import { handleApiError } from "@/lib/api-response";
+import { RATE_LIMITS } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(req, { rateLimit: RATE_LIMITS.write });
+  if (isGuardError(guard)) return guard;
 
+  try {
   const { updates } = (await req.json()) as {
     updates: { dni: string; nombres: string; apellidoPaterno: string; apellidoMaterno: string }[];
   };
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     const result = await prisma.asistencia.updateMany({
       where: {
         numeroDni: u.dni,
-        eventoId: session.eventoId,
+        eventoId: guard.session.eventoId,
         eliminado: false,
         OR: [
           { apellidoPaterno: "POR VERIFICAR" },
@@ -47,4 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, totalUpdated });
+  } catch (err) {
+    return handleApiError(err, "POST /api/asistencias/bulk-update");
+  }
 }

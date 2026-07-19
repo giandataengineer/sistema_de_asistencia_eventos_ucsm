@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { asistenciaService } from "@/services/asistencia.service";
 import { prisma } from "@/lib/db";
+import { apiGuard, isGuardError } from "@/lib/api-guard";
+import { handleApiError } from "@/lib/api-response";
+import { RATE_LIMITS } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +11,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request, { rateLimit: RATE_LIMITS.write });
+  if (isGuardError(guard)) return guard;
 
   try {
     const { id } = await params;
@@ -23,33 +23,31 @@ export async function PATCH(
       select: { eventoId: true },
     });
 
-    if (!asistencia || asistencia.eventoId !== session.eventoId) {
+    if (!asistencia || asistencia.eventoId !== guard.session.eventoId) {
       return NextResponse.json({ error: "No encontrado" }, { status: 404 });
     }
 
     const updated = await prisma.asistencia.update({
       where: { id },
       data: {
-        ...(body.nombres && { nombres: body.nombres }),
-        ...(body.apellidoPaterno && { apellidoPaterno: body.apellidoPaterno }),
-        ...(body.apellidoMaterno !== undefined && { apellidoMaterno: body.apellidoMaterno }),
+        ...(body.nombres && { nombres: String(body.nombres).slice(0, 150) }),
+        ...(body.apellidoPaterno && { apellidoPaterno: String(body.apellidoPaterno).slice(0, 100) }),
+        ...(body.apellidoMaterno !== undefined && { apellidoMaterno: body.apellidoMaterno ? String(body.apellidoMaterno).slice(0, 100) : null }),
       },
     });
 
     return NextResponse.json(updated);
-  } catch {
-    return NextResponse.json({ error: "Error al actualizar" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err, "PATCH /api/asistencias/[id]");
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request, { rateLimit: RATE_LIMITS.write });
+  if (isGuardError(guard)) return guard;
 
   try {
     const { id } = await params;
@@ -59,16 +57,13 @@ export async function DELETE(
       select: { eventoId: true },
     });
 
-    if (!asistencia || asistencia.eventoId !== session.eventoId) {
+    if (!asistencia || asistencia.eventoId !== guard.session.eventoId) {
       return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
     }
 
     await asistenciaService.eliminar(id);
     return NextResponse.json({ message: "Registro eliminado" });
-  } catch {
-    return NextResponse.json(
-      { error: "Error al eliminar registro" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return handleApiError(err, "DELETE /api/asistencias/[id]");
   }
 }

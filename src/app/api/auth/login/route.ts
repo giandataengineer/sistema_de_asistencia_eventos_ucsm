@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { loginSchema } from "@/validators/auth.validator";
 import { authService } from "@/services/auth.service";
 import { getTokenCookieOptions } from "@/lib/auth";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("auth");
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +46,7 @@ export async function POST(request: NextRequest) {
 
   const limit = checkLoginLimit(ip);
   if (!limit.allowed) {
+    logger.warn("Login rate limit exceeded", { ip, locked: limit.locked });
     const message = limit.locked
       ? "Cuenta bloqueada temporalmente por multiples intentos fallidos. Espere 15 minutos."
       : "Demasiados intentos. Espere un momento.";
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
     const result = await authService.login(parsed.data);
 
     if (!result.success) {
+      logger.warn("Login failed", { ip, username: parsed.data.username });
       return NextResponse.json({ error: result.error }, { status: 401 });
     }
 
@@ -82,7 +87,10 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
+  } catch (err) {
+    logger.error("Login error", {
+      message: err instanceof Error ? err.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }

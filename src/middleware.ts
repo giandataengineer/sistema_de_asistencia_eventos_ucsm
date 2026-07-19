@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ucsm-asistencia-secret-change-in-production"
+  process.env.JWT_SECRET
 );
 const TOKEN_NAME = "ucsm_asistencia_token";
 
@@ -14,8 +14,31 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/api/") && MUTATION_METHODS.has(request.method)) {
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host");
+    if (origin && host) {
+      try {
+        const originHost = new URL(origin).host;
+        if (originHost !== host) {
+          return NextResponse.json(
+            { error: "Origen no autorizado" },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Origen invalido" },
+          { status: 403 }
+        );
+      }
+    }
+  }
 
   if (isPublicPath(pathname)) {
     return addSecurityHeaders(NextResponse.next());

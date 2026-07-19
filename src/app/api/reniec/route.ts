@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { reniecService } from "@/services/reniec.service";
+import { apiGuard, isGuardError } from "@/lib/api-guard";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const guard = await apiGuard(request);
+  if (isGuardError(guard)) return guard;
 
-  const dni = new URL(request.url).searchParams.get("dni");
-  if (!dni || !/^\d{8}$/.test(dni)) {
-    return NextResponse.json({ error: "DNI invalido" }, { status: 400 });
-  }
+  try {
+    const dni = new URL(request.url).searchParams.get("dni");
+    if (!dni || !/^\d{8}$/.test(dni)) {
+      return NextResponse.json({ error: "DNI invalido" }, { status: 400 });
+    }
 
-  const result = await reniecService.consultarDni(dni);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 404 });
-  }
+    const result = await reniecService.consultarDni(dni);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 404 });
+    }
 
-  return NextResponse.json(result.data);
+    return NextResponse.json(result.data);
+  } catch (err) {
+    return handleApiError(err, "GET /api/reniec");
+  }
 }
