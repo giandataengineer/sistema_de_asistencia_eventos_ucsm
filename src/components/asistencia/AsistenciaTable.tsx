@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import type { Asistencia } from "@/interfaces/asistencia.interface";
 import { formatTimePeru } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -10,37 +9,7 @@ interface AsistenciaTableProps {
   onDelete: (id: string, nombre: string) => void;
 }
 
-function calcularPermanencia(registros: Asistencia[], r: Asistencia): string {
-  const entrada = registros.find(
-    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.sesion === r.sesion && e.tipo === "entrada" && !e.eliminado
-  );
-  const salida = registros.find(
-    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.sesion === r.sesion && e.tipo === "salida" && !e.eliminado
-  );
-
-  if (!entrada || !salida) return "No corresponde";
-
-  const msEntrada = new Date(entrada.fechaRegistro).getTime();
-  const msSalida = new Date(salida.fechaRegistro).getTime();
-  const diffMs = msSalida - msEntrada;
-
-  if (diffMs < 0) return "No corresponde";
-
-  const horas = Math.floor(diffMs / 3600000);
-  const minutos = Math.floor((diffMs % 3600000) / 60000);
-
-  if (horas > 0) return `${horas}h ${minutos}min`;
-  return `${minutos}min`;
-}
-
 export default function AsistenciaTable({ registros, onDelete }: AsistenciaTableProps) {
-  const permanenciaMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const r of registros) {
-      map.set(r.id, calcularPermanencia(registros, r));
-    }
-    return map;
-  }, [registros]);
 
   if (registros.length === 0) {
     return (
@@ -73,7 +42,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               const nombreCompleto = [r.apellidoPaterno, r.apellidoMaterno, r.nombres]
                 .filter(Boolean)
                 .join(" ");
-              const permanencia = permanenciaMap.get(r.id);
+              const permanencia = r.permanencia ?? "No corresponde";
               return (
                 <tr
                   key={r.id}
@@ -135,7 +104,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
           const nombreCompleto = [r.apellidoPaterno, r.apellidoMaterno, r.nombres]
             .filter(Boolean)
             .join(" ");
-          const permanencia = permanenciaMap.get(r.id);
+          const permanencia = r.permanencia ?? "No corresponde";
           return (
             <div
               key={r.id}

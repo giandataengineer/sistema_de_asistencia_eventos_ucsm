@@ -13,6 +13,7 @@ export interface Asistencia {
   registradoPor: string;
   fechaRegistro: Date;
   eliminado: boolean;
+  permanencia?: string;
 }
 
 export interface AsistenciaCreate {

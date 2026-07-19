@@ -57,8 +57,43 @@ export const asistenciaRepository = {
       prisma.asistencia.count({ where }),
     ]);
 
+    const dnis = [...new Set(data.map((r) => r.numeroDni))];
+    const dias = [...new Set(data.map((r) => r.dia))];
+    const sesiones = [...new Set(data.map((r) => r.sesion))];
+
+    const pares = dnis.length > 0 ? await prisma.asistencia.findMany({
+      where: {
+        eventoId,
+        eliminado: false,
+        numeroDni: { in: dnis },
+        dia: { in: dias },
+        sesion: { in: sesiones },
+      },
+      select: { numeroDni: true, dia: true, sesion: true, tipo: true, fechaRegistro: true },
+    }) : [];
+
+    const pareMap = new Map<string, { entrada?: Date; salida?: Date }>();
+    for (const p of pares) {
+      const key = `${p.numeroDni}-${p.dia}-${p.sesion}`;
+      const entry = pareMap.get(key) ?? {};
+      if (p.tipo === "entrada") entry.entrada = p.fechaRegistro;
+      if (p.tipo === "salida") entry.salida = p.fechaRegistro;
+      pareMap.set(key, entry);
+    }
+
+    const dataWithPerm = data.map((r) => {
+      const key = `${r.numeroDni}-${r.dia}-${r.sesion}`;
+      const par = pareMap.get(key);
+      if (!par?.entrada || !par?.salida) return { ...r, permanencia: "No corresponde" };
+      const diffMs = new Date(par.salida).getTime() - new Date(par.entrada).getTime();
+      if (diffMs < 0) return { ...r, permanencia: "No corresponde" };
+      const horas = Math.floor(diffMs / 3600000);
+      const minutos = Math.floor((diffMs % 3600000) / 60000);
+      return { ...r, permanencia: horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min` };
+    });
+
     return {
-      data,
+      data: dataWithPerm,
       total,
       page,
       limit,
