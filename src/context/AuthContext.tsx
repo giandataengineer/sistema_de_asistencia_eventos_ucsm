@@ -18,12 +18,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("asistepro_user");
+    const stored = localStorage.getItem("ucsm_asistencia_user");
     if (stored) {
       try {
         setUsuario(JSON.parse(stored));
       } catch {
-        localStorage.removeItem("asistepro_user");
+        localStorage.removeItem("ucsm_asistencia_user");
       }
     }
     setLoading(false);
@@ -43,14 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUsuario(data.usuario);
-    localStorage.setItem("asistepro_user", JSON.stringify(data.usuario));
+    localStorage.setItem("ucsm_asistencia_user", JSON.stringify(data.usuario));
     return { success: true };
   }, []);
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setUsuario(null);
-    localStorage.removeItem("asistepro_user");
+    localStorage.removeItem("ucsm_asistencia_user");
     window.location.href = "/login";
   }, []);
 

@@ -19,8 +19,8 @@ import {
   LogIn,
   LogOut,
   Plus,
-  Trash2,
   ClipboardList,
+  Calendar,
 } from "lucide-react";
 
 type ScanMode = "camera" | "manual" | "external";
@@ -37,8 +37,26 @@ const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ cl
   { mode: "manual", label: "Manual", icon: Keyboard },
 ];
 
+function formatFechaDia(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  return `${dias[date.getDay()]} ${d} ${meses[date.getMonth()]}`;
+}
+
+function buildModules(count: number): RegistroModule[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    label: `${i + 1}° Registro de Asistencia`,
+  }));
+}
+
 export default function RegistroPage() {
   const { usuario } = useAuth();
+  const [fechas, setFechas] = useState<Record<number, string>>({});
+  const [availableDias, setAvailableDias] = useState<number[]>([]);
+  const [selectedDia, setSelectedDia] = useState<number | null>(null);
   const [modules, setModules] = useState<RegistroModule[]>([{ id: 1, label: "1° Registro de Asistencia" }]);
   const [activeModuleId, setActiveModuleId] = useState(1);
   const [mode, setMode] = useState<ScanMode>("camera");
@@ -51,75 +69,118 @@ export default function RegistroPage() {
   const [dniLoading, setDniLoading] = useState(false);
   const [lastManualResult, setLastManualResult] = useState<{ nombre: string; success: boolean } | null>(null);
   const processingRef = useRef(false);
+  const initializedRef = useRef(false);
 
   const { data, fetchAsistencias, registrar, eliminar, consultarDni } = useAsistencias();
 
   useEffect(() => {
-    fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
-  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
+    (async () => {
+      try {
+        const [metaRes, diaRes] = await Promise.all([
+          fetch("/api/asistencias/metadata"),
+          fetch("/api/asistencias/dia-actual"),
+        ]);
+
+        const meta = metaRes.ok ? await metaRes.json() : { dias: [] };
+        const diaData = diaRes.ok ? await diaRes.json() : { dia: 1, totalDias: 1, fechas: {} };
+
+        setFechas(diaData.fechas ?? {});
+
+        const diasFromDb: number[] = meta.dias ?? [];
+        const allDias: number[] = [];
+        for (let i = 1; i <= (diaData.totalDias ?? 1); i++) {
+          allDias.push(i);
+        }
+        const merged = [...new Set([...allDias, ...diasFromDb])].sort((a, b) => a - b);
+        setAvailableDias(merged);
+
+        if (!initializedRef.current && merged.length > 0) {
+          initializedRef.current = true;
+          const current = diasFromDb.includes(diaData.dia) ? diaData.dia : merged[merged.length - 1];
+          setSelectedDia(current);
+        }
+      } catch {
+        setAvailableDias([1]);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
+    if (selectedDia === null) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/asistencias/metadata?dia=${selectedDia}`);
+        if (!res.ok) return;
+        const meta = await res.json();
+        const dbSessions: number[] = meta.sesiones ?? [];
+        const maxSession = dbSessions.length > 0 ? Math.max(...dbSessions) : 1;
+        setModules(buildModules(maxSession));
+        setActiveModuleId(1);
+        setTipoRegistro("entrada");
+      } catch {
+        setModules([{ id: 1, label: "1° Registro de Asistencia" }]);
+      }
+    })();
+  }, [selectedDia]);
+
+  useEffect(() => {
+    if (selectedDia === null) return;
+    fetchAsistencias(1, undefined, selectedDia, activeModuleId, tipoRegistro);
+  }, [fetchAsistencias, selectedDia, activeModuleId, tipoRegistro]);
+
+  useEffect(() => {
+    if (selectedDia === null) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch("/api/asistencias/actualizar-nombres", { method: "POST" });
         if (res.ok) {
           const result = await res.json();
           if (result.actualizados > 0) {
-            fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
+            fetchAsistencias(1, undefined, selectedDia, activeModuleId, tipoRegistro);
           }
         }
       } catch {
-        // silencioso
+        // silent
       }
     }, 45000);
     return () => clearInterval(interval);
-  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
+  }, [fetchAsistencias, selectedDia, activeModuleId, tipoRegistro]);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(() => fetchAsistencias(1, undefined, activeModuleId, tipoRegistro), 1500);
-  }, [fetchAsistencias, activeModuleId, tipoRegistro]);
+    refreshTimerRef.current = setTimeout(() => {
+      if (selectedDia !== null) {
+        fetchAsistencias(1, undefined, selectedDia, activeModuleId, tipoRegistro);
+      }
+    }, 1500);
+  }, [fetchAsistencias, selectedDia, activeModuleId, tipoRegistro]);
 
   const handleAddModule = () => {
     if (modules.length >= 10) {
       toast.warning("Maximo 10 registros de asistencia");
       return;
     }
-    const nextNum = modules.length + 1;
-    const newModule: RegistroModule = {
-      id: nextNum,
-      label: `${nextNum}° Registro de Asistencia`,
-    };
-    setModules([...modules, newModule]);
-    setActiveModuleId(nextNum);
-    setTipoRegistro("entrada");
-    toast.success(`${newModule.label} agregado`);
-  };
-
-  const handleRemoveModule = (moduleId: number) => {
-    if (modules.length <= 1) {
-      toast.warning("Debe haber al menos un registro");
+    if (selectedDia === null) {
+      toast.warning("Selecciona un día primero");
       return;
     }
-    const updated = modules.filter((m) => m.id !== moduleId);
-    const renumbered = updated.map((m, i) => ({
-      ...m,
-      id: i + 1,
-      label: `${i + 1}° Registro de Asistencia`,
-    }));
-    setModules(renumbered);
-    if (activeModuleId === moduleId) {
-      setActiveModuleId(renumbered[0].id);
-    } else if (activeModuleId > moduleId) {
-      setActiveModuleId(activeModuleId - 1);
-    }
+    const nextNum = modules.length + 1;
+    setModules(buildModules(nextNum));
+    setActiveModuleId(nextNum);
+    setTipoRegistro("entrada");
+    toast.success(`${nextNum}° Registro de Asistencia agregado`);
   };
 
   const handleDniDetected = useCallback(
     async (dni: string) => {
       if (processingRef.current) return;
+      if (selectedDia === null) {
+        toast.warning("Selecciona un día primero");
+        return;
+      }
       processingRef.current = true;
       setDniLoading(true);
       setLastManualResult(null);
@@ -134,11 +195,12 @@ export default function RegistroPage() {
           nombres: "Registrando",
           tipoDni: "electronico",
           tipo: tipoRegistro,
-          dia: activeModuleId,
+          sesion: activeModuleId,
+          dia: selectedDia,
         });
 
         if (regResult.success) {
-          toast.success(`${tipoLabel} - DNI ${dni} (${activeModuleId}° Reg)`, { duration: 1200 });
+          toast.success(`${tipoLabel} - DNI ${dni} (Día ${selectedDia}, ${activeModuleId}° Reg)`, { duration: 1200 });
           setSuccessName(`${tipoLabel} - ${dni}`);
           setShowSuccessModal(true);
           setLastManualResult({ nombre: `DNI ${dni} - ${tipoLabel}`, success: true });
@@ -171,7 +233,7 @@ export default function RegistroPage() {
         processingRef.current = false;
       }
     },
-    [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId]
+    [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId, selectedDia]
   );
 
   const handleDelete = async () => {
@@ -179,7 +241,9 @@ export default function RegistroPage() {
     const ok = await eliminar(deleteTarget.id);
     if (ok) {
       toast.success("Registro eliminado");
-      fetchAsistencias(1, undefined, activeModuleId, tipoRegistro);
+      if (selectedDia !== null) {
+        fetchAsistencias(1, undefined, selectedDia, activeModuleId, tipoRegistro);
+      }
     } else {
       toast.error("Error al eliminar");
     }
@@ -187,6 +251,41 @@ export default function RegistroPage() {
   };
 
   const activeModule = modules.find((m) => m.id === activeModuleId);
+  const selectedFecha = selectedDia && fechas[selectedDia] ? formatFechaDia(fechas[selectedDia]) : null;
+
+  if (selectedDia === null) {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-primary tracking-tight">Registrar Asistencia</h1>
+          <p className="text-sm text-muted mt-0.5">{usuario?.eventoNombre}</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center">
+          <Calendar className="w-12 h-12 text-accent mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-primary mb-2">Selecciona el día del evento</h2>
+          <p className="text-sm text-muted mb-6">Elige la fecha para registrar asistencia</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {availableDias.length === 0 && (
+              <p className="text-sm text-muted">Cargando días disponibles...</p>
+            )}
+            {availableDias.map((dia) => (
+              <button
+                key={dia}
+                onClick={() => setSelectedDia(dia)}
+                className="flex flex-col items-center px-6 py-4 rounded-xl border-2 border-accent bg-accent/10 text-primary font-bold hover:bg-accent hover:text-primary-deep transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
+              >
+                <span className="text-lg">Día {dia}</span>
+                {fechas[dia] && (
+                  <span className="text-xs font-medium text-muted mt-1">{formatFechaDia(fechas[dia])}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -204,31 +303,50 @@ export default function RegistroPage() {
         </div>
       </div>
 
-      {/* Modules selector */}
+      {/* Day selector with dates */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-muted" />
+          <span className="text-sm font-medium text-ink">Fecha:</span>
+        </div>
+        <div className="flex items-center gap-1 p-1 bg-white border border-border rounded-xl shadow-sm">
+          {availableDias.map((dia) => (
+            <button
+              key={dia}
+              onClick={() => setSelectedDia(dia)}
+              className={`flex flex-col items-center px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                selectedDia === dia
+                  ? "bg-primary text-accent shadow-sm"
+                  : "text-muted hover:text-ink hover:bg-surface-alt"
+              }`}
+            >
+              <span>Día {dia}</span>
+              {fechas[dia] && (
+                <span className={`text-[0.6rem] font-medium mt-0.5 ${selectedDia === dia ? "text-accent/80" : "text-muted"}`}>
+                  {formatFechaDia(fechas[dia])}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Session modules selector */}
       <div className="mb-4">
         <div className="flex flex-wrap gap-2 items-center">
           {modules.map((mod) => (
-            <div key={mod.id} className="relative group">
-              <button
-                onClick={() => { setActiveModuleId(mod.id); setTipoRegistro("entrada"); }}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
-                  activeModuleId === mod.id
-                    ? "bg-primary text-accent border-primary shadow-lg scale-105"
-                    : "bg-white text-muted border-border hover:border-primary/50 hover:text-primary"
-                }`}
-              >
-                <ClipboardList className="w-4 h-4" />
-                {mod.label}
-              </button>
-              {modules.length > 1 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleRemoveModule(mod.id); }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+            <button
+              key={mod.id}
+              onClick={() => { setActiveModuleId(mod.id); setTipoRegistro("entrada"); }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
+                activeModuleId === mod.id
+                  ? "bg-primary text-accent border-primary shadow-lg scale-105"
+                  : "bg-white text-muted border-border hover:border-primary/50 hover:text-primary"
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              {mod.label}
+            </button>
           ))}
           {modules.length < 10 && (
             <button
@@ -246,6 +364,9 @@ export default function RegistroPage() {
       <div className="bg-white rounded-xl border border-border shadow-sm p-4 mb-6">
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-primary">{activeModule?.label}</h2>
+          <p className="text-xs text-muted">
+            Día {selectedDia}{selectedFecha ? ` — ${selectedFecha}` : ""}
+          </p>
         </div>
 
         {/* Entrada / Salida toggle */}
@@ -337,7 +458,9 @@ export default function RegistroPage() {
         }`}>
           <span className="flex items-center gap-2">
             {tipoRegistro === "entrada" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
-            {activeModule?.label} - {tipoRegistro === "entrada" ? "Entradas" : "Salidas"}
+            <span>
+              Día {selectedDia}{selectedFecha ? ` (${selectedFecha})` : ""} — {activeModule?.label} — {tipoRegistro === "entrada" ? "Entradas" : "Salidas"}
+            </span>
           </span>
           <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{data?.total ?? 0}</span>
         </div>

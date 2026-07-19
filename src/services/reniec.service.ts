@@ -1,6 +1,8 @@
 const RENIEC_API_V1 = "https://api.apis.net.pe/v1/dni";
 const RENIEC_API_V2 = "https://api.apis.net.pe/v2/reniec/dni";
 const ELDNI_URL = "https://eldni.com/pe/buscar-por-dni";
+const APIPERU_URL = "https://apiperu.dev/api/dni";
+const APIPERU_TOKEN = process.env.APIPERU_TOKEN ?? "";
 
 interface DniData {
   nombres: string;
@@ -17,7 +19,7 @@ function delay(ms: number) {
 
 async function tryApiFetch(url: string): Promise<DniData | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const json = await res.json();
     if (json.nombres || json.apellidoPaterno) {
@@ -33,48 +35,110 @@ async function tryApiFetch(url: string): Promise<DniData | null> {
   }
 }
 
-async function tryElDni(dni: string): Promise<DniData | null> {
+let elDniSession: { cookies: string; token: string; ts: number } | null = null;
+
+async function getElDniSession(): Promise<{ cookies: string; token: string } | null> {
+  if (elDniSession && Date.now() - elDniSession.ts < 1000 * 60 * 10) {
+    return elDniSession;
+  }
   try {
-    const pageRes = await fetch(ELDNI_URL, { signal: AbortSignal.timeout(6000) });
+    const pageRes = await fetch(ELDNI_URL, {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
     if (!pageRes.ok) return null;
     const html = await pageRes.text();
-    const cookieHeader = pageRes.headers.get("set-cookie") || "";
 
     const tokenMatch = html.match(/name="_token"[^>]*value="([^"]+)"/);
     if (!tokenMatch) return null;
-    const csrfToken = tokenMatch[1];
 
-    const sessionMatch = cookieHeader.match(/eldni_session=([^;]+)/);
-    const xsrfMatch = cookieHeader.match(/XSRF-TOKEN=([^;]+)/);
-    const cookies = [
-      sessionMatch ? `eldni_session=${sessionMatch[1]}` : "",
-      xsrfMatch ? `XSRF-TOKEN=${xsrfMatch[1]}` : "",
-    ].filter(Boolean).join("; ");
+    const allCookies: string[] = [];
+    const setCookies = pageRes.headers.getSetCookie?.() || [];
+    for (const c of setCookies) {
+      const match = c.match(/^([^=]+=[^;]+)/);
+      if (match) allCookies.push(match[1]);
+    }
+
+    if (allCookies.length === 0) {
+      const cookieHeader = pageRes.headers.get("set-cookie") || "";
+      const sessionMatch = cookieHeader.match(/eldni_session=([^;]+)/);
+      const xsrfMatch = cookieHeader.match(/XSRF-TOKEN=([^;]+)/);
+      if (sessionMatch) allCookies.push(`eldni_session=${sessionMatch[1]}`);
+      if (xsrfMatch) allCookies.push(`XSRF-TOKEN=${xsrfMatch[1]}`);
+    }
+
+    elDniSession = { cookies: allCookies.join("; "), token: tokenMatch[1], ts: Date.now() };
+    return elDniSession;
+  } catch {
+    return null;
+  }
+}
+
+async function tryElDni(dni: string): Promise<DniData | null> {
+  try {
+    const session = await getElDniSession();
+    if (!session) return null;
 
     const formRes = await fetch(ELDNI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookies,
+        "Cookie": session.cookies,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": ELDNI_URL,
       },
-      body: `_token=${csrfToken}&dni=${dni}`,
-      signal: AbortSignal.timeout(8000),
+      body: `_token=${encodeURIComponent(session.token)}&dni=${dni}`,
+      signal: AbortSignal.timeout(10000),
     });
 
-    if (!formRes.ok) return null;
+    if (!formRes.ok) {
+      elDniSession = null;
+      return null;
+    }
     const resultHtml = await formRes.text();
 
-    const cells = resultHtml.match(/<td[^>]*>([^<]+)</g);
+    const cells = resultHtml.match(/<td[^>]*>([^<]+)/g);
     if (!cells || cells.length < 4) return null;
 
-    const extract = (s: string) => s.replace(/<td[^>]*>/, "").trim();
+    const extract = (s: string) => s.replace(/<td[^>]*>/, "").replace(/<$/, "").trim();
     const nombres = extract(cells[1]);
     const apellidoPaterno = extract(cells[2]);
     const apellidoMaterno = extract(cells[3]);
 
-    if (!nombres) return null;
+    if (!nombres || nombres.length < 2) return null;
 
     return { nombres, apellidoPaterno, apellidoMaterno };
+  } catch {
+    elDniSession = null;
+    return null;
+  }
+}
+
+async function tryApiPeruDev(dni: string): Promise<DniData | null> {
+  try {
+    const res = await fetch(APIPERU_URL, {
+      method: "POST",
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${APIPERU_TOKEN}`,
+      },
+      body: JSON.stringify({ dni }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.data?.nombres) {
+      return {
+        nombres: json.data.nombres || "",
+        apellidoPaterno: json.data.apellido_paterno || "",
+        apellidoMaterno: json.data.apellido_materno || "",
+      };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -107,6 +171,18 @@ export const reniecService = {
     if (!data) {
       await delay(500);
       data = await tryApiFetch(`${RENIEC_API_V2}?numero=${dni}`);
+    }
+
+    // 4. apiperu.dev (requiere token verificado)
+    if (!data && APIPERU_TOKEN) {
+      data = await tryApiPeruDev(dni);
+    }
+
+    // 5. Retry eldni con nueva sesion
+    if (!data) {
+      elDniSession = null;
+      await delay(1000);
+      data = await tryElDni(dni);
     }
 
     if (data) {

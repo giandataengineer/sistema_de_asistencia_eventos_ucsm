@@ -21,6 +21,10 @@ export default function LoginPage() {
   }, [usuario, router]);
 
   useEffect(() => {
+    fetch("/api/health").catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -222,12 +226,9 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="mt-6 flex flex-col items-center gap-1.5 animate-float pointer-events-none">
-          <div className="text-[0.78rem] text-white/35">
-            Sistema de Control de Asistencia
-          </div>
-          <p className="text-[0.9rem] font-medium text-white/50 tracking-wider">
-            Desarrollado por : <span className="animate-shine-green font-bold drop-shadow-[0_0_10px_rgba(0,230,118,0.7)] text-[1.1rem]">Gian Cruz</span>
+        <div className="mt-6 text-center">
+          <p className="text-[0.7rem] text-white/30 tracking-wider">
+            Sistema de Control de Asistencia &middot; Gian Cruz
           </p>
         </div>
       </div>

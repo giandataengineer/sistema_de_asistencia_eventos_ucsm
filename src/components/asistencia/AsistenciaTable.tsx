@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Asistencia } from "@/interfaces/asistencia.interface";
-import { formatDatePeru, formatTimePeru } from "@/lib/utils";
+import { formatTimePeru } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 
 interface AsistenciaTableProps {
@@ -14,7 +14,7 @@ function calcularPermanencia(registros: Asistencia[], r: Asistencia): string | n
   if (r.tipo !== "salida") return null;
 
   const entrada = registros.find(
-    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.tipo === "entrada" && !e.eliminado
+    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.sesion === r.sesion && e.tipo === "entrada" && !e.eliminado
   );
   if (!entrada) return null;
 
@@ -59,7 +59,8 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">DNI</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Apellidos y Nombres</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Tipo</th>
-              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Reg</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Etiqueta</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Sesión</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Hora</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Permanencia</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Accion</th>
@@ -87,8 +88,17 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      r.etiqueta === "organizador"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {r.etiqueta === "organizador" ? "Organizador" : "Participante"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
-                      {r.dia}
+                      {r.sesion}°
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-muted">{formatTimePeru(new Date(r.fechaRegistro))}</td>
@@ -142,7 +152,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                     {r.tipo === "salida" ? "Salida" : "Entrada"}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
-                    {r.dia}°
+                    {r.sesion}°
                   </span>
                   <button
                     onClick={() => onDelete(r.id, nombreCompleto)}

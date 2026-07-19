@@ -13,14 +13,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const eventoNombre = searchParams.get("eventoNombre") || "Asistencia";
   const dia = searchParams.get("dia");
+  const sesion = searchParams.get("sesion");
   const diaNum = dia ? parseInt(dia, 10) : undefined;
+  const sesionNum = sesion ? parseInt(sesion, 10) : undefined;
 
-  const buffer = await exportService.generateExcel(session.eventoId, eventoNombre, diaNum);
+  const buffer = await exportService.generateExcel(session.eventoId, eventoNombre, diaNum, sesionNum);
+
+  const suffix = [dia && `_dia${dia}`, sesion && `_sesion${sesion}`].filter(Boolean).join("");
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename=asistencia.xlsx`,
+      "Content-Disposition": `attachment; filename=asistencia${suffix}.xlsx`,
     },
   });
 }

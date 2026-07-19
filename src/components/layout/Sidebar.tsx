@@ -5,11 +5,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useRef } from "react";
-import { History, LogOut, ScanBarcode } from "lucide-react";
+import { BarChart3, History, LogOut, ScanBarcode } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/registro", label: "Registrar Asistencia", icon: ScanBarcode },
   { href: "/historial", label: "Historial", icon: History },
+  { href: "/analitica", label: "Analitica", icon: BarChart3 },
 ];
 
 function SidebarParticles() {
@@ -150,10 +151,9 @@ export default function Sidebar() {
           </div>
         )}
 
-        <div className="px-5 pb-4 pt-1 text-center animate-float pointer-events-none relative z-[1]">
-          <p className="text-[0.7rem] text-white/40 uppercase tracking-[0.15em] leading-relaxed">
-            Desarrollado por :<br/>
-            <span className="animate-shine-green font-bold tracking-widest text-[0.85rem] drop-shadow-[0_0_10px_rgba(0,230,118,0.7)]">Gian Cruz</span>
+        <div className="px-5 pb-4 pt-1 text-center relative z-[1]">
+          <p className="text-[0.65rem] text-white/30 tracking-wider">
+            Desarrollado por Gian Cruz
           </p>
         </div>
 

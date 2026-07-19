@@ -9,7 +9,7 @@ export function useAsistencias() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAsistencias = useCallback(
-    async (page = 1, search?: string, dia?: number, tipo?: string) => {
+    async (page = 1, search?: string, dia?: number, sesion?: number, tipo?: string) => {
       setLoading(true);
       setError(null);
 
@@ -20,6 +20,7 @@ export function useAsistencias() {
         });
         if (search) params.set("search", search);
         if (dia) params.set("dia", String(dia));
+        if (sesion) params.set("sesion", String(sesion));
         if (tipo) params.set("tipo", tipo);
 
         const res = await fetch(`/api/asistencias?${params}`);

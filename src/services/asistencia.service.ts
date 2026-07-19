@@ -28,12 +28,14 @@ async function calcularDia(eventoId: string): Promise<number> {
 export const asistenciaService = {
   async registrar(input: CreateAsistenciaInput, registradoPor: string) {
     const dia = input.dia ?? await calcularDia(input.eventoId);
+    const sesion = input.sesion ?? 1;
     const tipo = input.tipo ?? "entrada";
 
-    const existente = await asistenciaRepository.findByDniEventoDiaTipo(
+    const existente = await asistenciaRepository.findByDniEventoDiaSesionTipo(
       input.numeroDni,
       input.eventoId,
       dia,
+      sesion,
       tipo
     );
 
@@ -58,7 +60,7 @@ export const asistenciaService = {
       const hora = formatTimePeru(existente.fechaRegistro);
       return {
         success: false,
-        error: `${tipoLabel.toUpperCase()} ya registrada el dia ${dia} a las ${hora}`,
+        error: `${tipoLabel.toUpperCase()} ya registrada (Día ${dia}, Sesión ${sesion}) a las ${hora}`,
         duplicado: true,
       };
     }
@@ -66,6 +68,7 @@ export const asistenciaService = {
     const asistencia = await asistenciaRepository.create({
       ...input,
       dia,
+      sesion,
       tipo,
       registradoPor,
     });
@@ -85,11 +88,15 @@ export const asistenciaService = {
     return asistenciaRepository.countByEvento(eventoId);
   },
 
-  async obtenerParaExportar(eventoId: string, dia?: number) {
-    return asistenciaRepository.findAllForExport(eventoId, dia);
+  async obtenerParaExportar(eventoId: string, dia?: number, sesion?: number) {
+    return asistenciaRepository.findAllForExport(eventoId, dia, sesion);
   },
 
   async obtenerDiasEvento(eventoId: string): Promise<number[]> {
     return asistenciaRepository.getDistinctDias(eventoId);
+  },
+
+  async obtenerSesionesEvento(eventoId: string, dia?: number): Promise<number[]> {
+    return asistenciaRepository.getDistinctSesiones(eventoId, dia);
   },
 };

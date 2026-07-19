@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Asistencia UCSM
+
+Production-grade attendance tracking system built for academic events at Universidad Católica de Santa María. Currently deployed for the **IV Seminario Internacional de Costos y Gestión de Operaciones** (Aug 1–3, 2026).
+
+## Features
+
+- **Barcode scanning** — Real-time PDF417 DNI scanning via device camera for frictionless check-in/check-out
+- **Multi-day, multi-session** — Supports arbitrary event schedules with per-day, per-session granularity
+- **Attendee classification** — Tag-based segmentation (participante / organizador) with bulk import support
+- **Analytics dashboard** — KPIs, temporal distribution charts, retention rates, and data quality metrics
+- **Export pipeline** — One-click export to Excel (.xlsx), CSV, and PDF with full filter support
+- **Security hardened** — Rate limiting, account lockout, security headers (HSTS, CSP concepts, X-Frame-Options)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Next.js 16 (App Router, Turbopack) |
+| UI | React 19, TypeScript 5, Tailwind CSS 4 |
+| ORM | Prisma 7 + `@prisma/adapter-pg` |
+| Database | PostgreSQL (Neon serverless) |
+| Auth | JWT via `jose` + `bcryptjs` (httpOnly cookies) |
+| Scanner | `html5-qrcode` (PDF417 barcode decoder) |
+| Exports | ExcelJS, jsPDF, native CSV generation |
+| Validation | Zod schema validation on all inputs |
+| Deployment | Vercel (auto-deploy on push to main) |
+
+## Architecture
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Public routes (login)
+│   ├── (dashboard)/        # Protected routes
+│   │   ├── registro/       # Attendance registration (scanner)
+│   │   ├── historial/      # History with filters & search
+│   │   └── analitica/      # Analytics dashboard
+│   └── api/                # REST endpoints
+│       ├── auth/           # Login + session management
+│       ├── asistencias/    # CRUD + exports + bulk operations
+│       ├── analytics/      # Aggregated metrics
+│       └── health/         # Connection warmup endpoint
+├── components/             # React components (UI + domain)
+├── context/                # Auth context (JWT state)
+├── hooks/                  # Custom hooks (useAsistencias)
+├── interfaces/             # TypeScript type definitions
+├── lib/                    # Core utilities
+│   ├── auth.ts             # JWT sign/verify + cookie config
+│   ├── db.ts               # Prisma client singleton (pg Pool)
+│   └── rate-limiter.ts     # In-memory fixed-window rate limiter
+├── repositories/           # Data access layer (Prisma queries)
+├── services/               # Business logic layer
+└── validators/             # Zod schemas for input validation
+```
+
+**Request flow:** Client → Middleware (auth + rate limit + security headers) → API Route → Service → Repository → Prisma → PostgreSQL
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Set DATABASE_URL and JWT_SECRET
+
+# Setup database
+npx prisma generate
+npx prisma db push
+npx tsx prisma/seed.ts
+
+# Start dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Description | Required |
+|----------|------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `JWT_SECRET` | Signing key for JWT tokens | Yes |
+| `APIPERU_TOKEN` | API Peru token for DNI lookup | Optional |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Security
 
-## Learn More
+- **Rate limiting** — Per-IP limits on auth (5/min), API reads (60/min), writes (30/min), exports (3/min)
+- **Account lockout** — 10 failed login attempts triggers 15-minute lockout
+- **Security headers** — HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
+- **Input validation** — Zod schemas on every endpoint
+- **Auth** — JWT stored in httpOnly secure cookies with SameSite=Lax
 
-To learn more about Next.js, take a look at the following resources:
+## Seed Data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The seed script (`prisma/seed.ts`) provisions:
+- Event: IV Seminario Internacional de Costos y Gestión de Operaciones (Aug 1–3)
+- Admin user: `seminario`
+- 25 organizing committee members with full attendance records across all days and sessions
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Author
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Gian Cruz** — Systems Engineering, Universidad Católica de Santa María

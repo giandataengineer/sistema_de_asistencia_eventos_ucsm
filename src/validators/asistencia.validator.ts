@@ -22,8 +22,10 @@ export const createAsistenciaSchema = z.object({
     .max(150)
     .trim(),
   tipoDni: z.enum(["azul", "electronico"]),
+  etiqueta: z.enum(["participante", "organizador"]).optional(),
   eventoId: z.string().min(1, "ID de evento requerido"),
   dia: z.number().int().min(1).optional(),
+  sesion: z.number().int().min(1).max(10).optional(),
   tipo: z.enum(["entrada", "salida"]).optional(),
 });
 

@@ -7,12 +7,14 @@ import autoTable from "jspdf-autotable";
 interface ExportButtonsProps {
   eventoNombre: string;
   dia?: number;
+  sesion?: number;
 }
 
-export default function ExportButtons({ eventoNombre, dia }: ExportButtonsProps) {
+export default function ExportButtons({ eventoNombre, dia, sesion }: ExportButtonsProps) {
   const buildParams = () => {
     const params = new URLSearchParams({ eventoNombre });
     if (dia) params.set("dia", String(dia));
+    if (sesion) params.set("sesion", String(sesion));
     return params;
   };
 
@@ -54,7 +56,7 @@ export default function ExportButtons({ eventoNombre, dia }: ExportButtonsProps)
       alternateRowStyles: { fillColor: [242, 247, 244] },
     });
 
-    const suffix = dia ? `_dia${dia}` : "";
+    const suffix = [dia && `_dia${dia}`, sesion && `_sesion${sesion}`].filter(Boolean).join("");
     doc.save(`asistencia${suffix}.pdf`);
   };
 

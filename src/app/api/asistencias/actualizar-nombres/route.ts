@@ -24,10 +24,12 @@ export async function POST() {
         { apellidoPaterno: "..." },
         { nombres: "POR ACTUALIZAR" },
         { apellidoPaterno: "POR ACTUALIZAR" },
+        { apellidoPaterno: "POR VERIFICAR" },
+        { nombres: { startsWith: "DNI " } },
       ],
     },
     select: { id: true, numeroDni: true },
-    take: 3,
+    take: 5,
   });
 
   if (pendientes.length === 0) {
@@ -59,8 +61,8 @@ export async function POST() {
       await prisma.asistencia.update({
         where: { id: reg.id },
         data: {
-          nombres: `DNI ${reg.numeroDni}`,
-          apellidoPaterno: "POR VERIFICAR",
+          nombres: reg.numeroDni,
+          apellidoPaterno: "NO ENCONTRADO",
           apellidoMaterno: "",
         },
       });
@@ -79,6 +81,8 @@ export async function POST() {
         { apellidoPaterno: "..." },
         { nombres: "POR ACTUALIZAR" },
         { apellidoPaterno: "POR ACTUALIZAR" },
+        { apellidoPaterno: "POR VERIFICAR" },
+        { nombres: { startsWith: "DNI " } },
       ],
     },
   });

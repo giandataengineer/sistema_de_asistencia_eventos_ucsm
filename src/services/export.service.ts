@@ -8,7 +8,9 @@ interface ExportRow {
   apellidoPaterno: string;
   apellidoMaterno: string;
   nombres: string;
-  dia: number;
+  etiqueta: string;
+  tipo: string;
+  sesion: number;
   fecha: string;
   hora: string;
 }
@@ -22,7 +24,9 @@ function buildRows(
     apellidoPaterno: r.apellidoPaterno,
     apellidoMaterno: r.apellidoMaterno || "",
     nombres: r.nombres,
-    dia: r.dia,
+    etiqueta: r.etiqueta === "organizador" ? "Organizador" : "Participante",
+    tipo: r.tipo === "entrada" ? "Entrada" : "Salida",
+    sesion: r.sesion,
     fecha: formatDatePeru(r.fechaRegistro),
     hora: formatTimePeru(r.fechaRegistro),
   }));
@@ -34,38 +38,42 @@ const HEADERS = [
   "Apellido Paterno",
   "Apellido Materno",
   "Nombres",
-  "Dia",
+  "Etiqueta",
+  "Tipo",
+  "Sesion",
   "Fecha",
   "Hora",
 ];
 
 export const exportService = {
-  async generateCSV(eventoId: string, dia?: number): Promise<string> {
-    const registros = await asistenciaRepository.findAllForExport(eventoId, dia);
+  async generateCSV(eventoId: string, dia?: number, sesion?: number): Promise<string> {
+    const registros = await asistenciaRepository.findAllForExport(eventoId, dia, sesion);
     const rows = buildRows(registros);
 
     const BOM = "﻿";
     const header = HEADERS.join(";");
     const body = rows
       .map((r) =>
-        [r.numero, r.dni, r.apellidoPaterno, r.apellidoMaterno, r.nombres, r.dia, r.fecha, r.hora].join(";")
+        [r.numero, r.dni, r.apellidoPaterno, r.apellidoMaterno, r.nombres, r.etiqueta, r.tipo, r.sesion, r.fecha, r.hora].join(";")
       )
       .join("\n");
 
     return `${BOM}${header}\n${body}`;
   },
 
-  async generateExcel(eventoId: string, eventoNombre: string, dia?: number): Promise<Buffer> {
-    const registros = await asistenciaRepository.findAllForExport(eventoId, dia);
+  async generateExcel(eventoId: string, eventoNombre: string, dia?: number, sesion?: number): Promise<Buffer> {
+    const registros = await asistenciaRepository.findAllForExport(eventoId, dia, sesion);
     const rows = buildRows(registros);
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "AsistePro";
+    workbook.creator = "Sistema de Asistencia UCSM";
     workbook.created = new Date();
 
-    const sheetName = dia
-      ? `${eventoNombre.substring(0, 25)} Dia ${dia}`
-      : eventoNombre.substring(0, 31);
+    let sheetName = eventoNombre.substring(0, 20);
+    if (dia) sheetName += ` D${dia}`;
+    if (sesion) sheetName += ` S${sesion}`;
+    sheetName = sheetName.substring(0, 31);
+
     const sheet = workbook.addWorksheet(sheetName);
 
     sheet.columns = [
@@ -74,7 +82,9 @@ export const exportService = {
       { header: "Apellido Paterno", key: "apellidoPaterno", width: 22 },
       { header: "Apellido Materno", key: "apellidoMaterno", width: 22 },
       { header: "Nombres", key: "nombres", width: 25 },
-      { header: "Dia", key: "dia", width: 6 },
+      { header: "Etiqueta", key: "etiqueta", width: 14 },
+      { header: "Tipo", key: "tipo", width: 10 },
+      { header: "Sesion", key: "sesion", width: 8 },
       { header: "Fecha", key: "fecha", width: 12 },
       { header: "Hora", key: "hora", width: 10 },
     ];
@@ -106,11 +116,16 @@ export const exportService = {
     return Buffer.from(buffer);
   },
 
-  async getDataForPDF(eventoId: string, eventoNombre: string, dia?: number) {
-    const registros = await asistenciaRepository.findAllForExport(eventoId, dia);
+  async getDataForPDF(eventoId: string, eventoNombre: string, dia?: number, sesion?: number) {
+    const registros = await asistenciaRepository.findAllForExport(eventoId, dia, sesion);
     const rows = buildRows(registros);
+
+    let title = eventoNombre;
+    if (dia) title += ` - Dia ${dia}`;
+    if (sesion) title += ` - ${sesion}° Registro`;
+
     return {
-      eventoNombre: dia ? `${eventoNombre} - Dia ${dia}` : eventoNombre,
+      eventoNombre: title,
       fechaGeneracion: formatDatePeru(new Date()),
       totalAsistentes: rows.length,
       headers: HEADERS,
@@ -120,7 +135,9 @@ export const exportService = {
         r.apellidoPaterno,
         r.apellidoMaterno,
         r.nombres,
-        r.dia,
+        r.etiqueta,
+        r.tipo,
+        r.sesion,
         r.fecha,
         r.hora,
       ]),

@@ -13,8 +13,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const eventoNombre = searchParams.get("eventoNombre") || "Evento";
   const dia = searchParams.get("dia");
+  const sesion = searchParams.get("sesion");
   const diaNum = dia ? parseInt(dia, 10) : undefined;
+  const sesionNum = sesion ? parseInt(sesion, 10) : undefined;
 
-  const data = await exportService.getDataForPDF(session.eventoId, eventoNombre, diaNum);
+  const data = await exportService.getDataForPDF(session.eventoId, eventoNombre, diaNum, sesionNum);
   return NextResponse.json(data);
 }

@@ -5,7 +5,9 @@ export interface Asistencia {
   apellidoMaterno: string | null;
   nombres: string;
   tipoDni: string;
+  etiqueta: string;
   dia: number;
+  sesion: number;
   tipo: string;
   eventoId: string;
   registradoPor: string;
@@ -19,7 +21,9 @@ export interface AsistenciaCreate {
   apellidoMaterno?: string | null;
   nombres: string;
   tipoDni: string;
+  etiqueta?: string;
   dia?: number;
+  sesion?: number;
   tipo?: string;
   eventoId: string;
   registradoPor: string;
@@ -31,7 +35,9 @@ export interface AsistenciaListParams {
   limit?: number;
   search?: string;
   dia?: number;
+  sesion?: number;
   tipo?: string;
+  etiqueta?: string;
 }
 
 export interface PaginatedResponse<T> {

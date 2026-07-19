@@ -6,31 +6,47 @@ import { getTokenCookieOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const MAX_ATTEMPTS = 5;
+const LOCKOUT_THRESHOLD = 10;
 const WINDOW_MS = 60_000;
-const attempts = new Map<string, { count: number; resetAt: number }>();
+const LOCKOUT_MS = 15 * 60_000;
+const attempts = new Map<string, { count: number; resetAt: number; locked: boolean }>();
 
-function checkRateLimit(ip: string): boolean {
+function checkLoginLimit(ip: string): { allowed: boolean; locked: boolean } {
   const now = Date.now();
   const record = attempts.get(ip);
 
   if (!record || now > record.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return true;
+    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS, locked: false });
+    return { allowed: true, locked: false };
   }
 
-  if (record.count >= MAX_ATTEMPTS) return false;
+  if (record.locked) {
+    return { allowed: false, locked: true };
+  }
+
+  if (record.count >= LOCKOUT_THRESHOLD) {
+    record.locked = true;
+    record.resetAt = now + LOCKOUT_MS;
+    return { allowed: false, locked: true };
+  }
+
+  if (record.count >= MAX_ATTEMPTS) {
+    return { allowed: false, locked: false };
+  }
+
   record.count++;
-  return true;
+  return { allowed: true, locked: false };
 }
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for") || "unknown";
 
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json(
-      { error: "Demasiados intentos. Espere un momento." },
-      { status: 429 }
-    );
+  const limit = checkLoginLimit(ip);
+  if (!limit.allowed) {
+    const message = limit.locked
+      ? "Cuenta bloqueada temporalmente por multiples intentos fallidos. Espere 15 minutos."
+      : "Demasiados intentos. Espere un momento.";
+    return NextResponse.json({ error: message }, { status: 429 });
   }
 
   try {

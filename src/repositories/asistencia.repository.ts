@@ -10,7 +10,9 @@ export const asistenciaRepository = {
         apellidoMaterno: data.apellidoMaterno,
         nombres: data.nombres,
         tipoDni: data.tipoDni,
+        etiqueta: data.etiqueta ?? "participante",
         dia: data.dia ?? 1,
+        sesion: data.sesion ?? 1,
         tipo: data.tipo ?? "entrada",
         eventoId: data.eventoId,
         registradoPor: data.registradoPor,
@@ -18,26 +20,23 @@ export const asistenciaRepository = {
     });
   },
 
-  async findByDniEventoDiaTipo(numeroDni: string, eventoId: string, dia: number, tipo: string) {
+  async findByDniEventoDiaSesionTipo(numeroDni: string, eventoId: string, dia: number, sesion: number, tipo: string) {
     return prisma.asistencia.findFirst({
-      where: {
-        numeroDni,
-        eventoId,
-        dia,
-        tipo,
-      },
+      where: { numeroDni, eventoId, dia, sesion, tipo },
     });
   },
 
   async findAll(params: AsistenciaListParams) {
-    const { eventoId, page = 1, limit = 20, search, dia } = params;
+    const { eventoId, page = 1, limit = 20, search, dia, sesion, etiqueta } = params;
     const skip = (page - 1) * limit;
 
     const where = {
       eventoId,
       eliminado: false,
       ...(dia && { dia }),
+      ...(sesion && { sesion }),
       ...(params.tipo && { tipo: params.tipo }),
+      ...(etiqueta && { etiqueta }),
       ...(search && {
         OR: [
           { numeroDni: { contains: search } },
@@ -67,12 +66,13 @@ export const asistenciaRepository = {
     };
   },
 
-  async findAllForExport(eventoId: string, dia?: number) {
+  async findAllForExport(eventoId: string, dia?: number, sesion?: number) {
     return prisma.asistencia.findMany({
       where: {
         eventoId,
         eliminado: false,
         ...(dia && { dia }),
+        ...(sesion && { sesion }),
       },
       orderBy: { fechaRegistro: "asc" },
     });
@@ -102,5 +102,109 @@ export const asistenciaRepository = {
       orderBy: { dia: "asc" },
     });
     return result.map((r) => r.dia);
+  },
+
+  async getDistinctSesiones(eventoId: string, dia?: number): Promise<number[]> {
+    const result = await prisma.asistencia.findMany({
+      where: { eventoId, eliminado: false, ...(dia && { dia }) },
+      select: { sesion: true },
+      distinct: ["sesion"],
+      orderBy: { sesion: "asc" },
+    });
+    return result.map((r) => r.sesion);
+  },
+
+  async getAnalytics(eventoId: string) {
+    const [
+      totalRegistros,
+      totalEntradas,
+      totalSalidas,
+      participantes,
+      organizadores,
+      dniUnicos,
+      registrosPorDia,
+      registrosPorSesion,
+      registrosPorHora,
+      ultimosRegistros,
+    ] = await Promise.all([
+      prisma.asistencia.count({ where: { eventoId, eliminado: false } }),
+      prisma.asistencia.count({ where: { eventoId, eliminado: false, tipo: "entrada" } }),
+      prisma.asistencia.count({ where: { eventoId, eliminado: false, tipo: "salida" } }),
+      prisma.asistencia.count({ where: { eventoId, eliminado: false, etiqueta: "participante" } }),
+      prisma.asistencia.count({ where: { eventoId, eliminado: false, etiqueta: "organizador" } }),
+      prisma.asistencia.findMany({
+        where: { eventoId, eliminado: false },
+        select: { numeroDni: true },
+        distinct: ["numeroDni"],
+      }),
+      prisma.asistencia.groupBy({
+        by: ["dia"],
+        where: { eventoId, eliminado: false, tipo: "entrada" },
+        _count: { id: true },
+        orderBy: { dia: "asc" },
+      }),
+      prisma.asistencia.groupBy({
+        by: ["sesion"],
+        where: { eventoId, eliminado: false, tipo: "entrada" },
+        _count: { id: true },
+        orderBy: { sesion: "asc" },
+      }),
+      prisma.$queryRaw`
+        SELECT EXTRACT(HOUR FROM fecha_registro) AS hora, COUNT(*)::int AS total
+        FROM asistencias
+        WHERE evento_id = ${eventoId} AND eliminado = false AND tipo = 'entrada'
+        GROUP BY hora ORDER BY hora
+      ` as Promise<Array<{ hora: number; total: number }>>,
+      prisma.asistencia.findMany({
+        where: { eventoId, eliminado: false },
+        orderBy: { fechaRegistro: "desc" },
+        take: 10,
+        select: {
+          numeroDni: true,
+          apellidoPaterno: true,
+          nombres: true,
+          tipo: true,
+          etiqueta: true,
+          fechaRegistro: true,
+          dia: true,
+          sesion: true,
+        },
+      }),
+    ]);
+
+    const tasaRetencion = totalEntradas > 0
+      ? Math.round((totalSalidas / totalEntradas) * 100)
+      : 0;
+
+    return {
+      kpis: {
+        totalRegistros,
+        totalEntradas,
+        totalSalidas,
+        asistentesUnicos: dniUnicos.length,
+        participantes,
+        organizadores,
+        tasaRetencion,
+      },
+      distribucionPorDia: registrosPorDia.map((r) => ({
+        dia: r.dia,
+        total: r._count.id,
+      })),
+      distribucionPorSesion: registrosPorSesion.map((r) => ({
+        sesion: r.sesion,
+        total: r._count.id,
+      })),
+      distribucionPorHora: (registrosPorHora as Array<{ hora: number; total: number }>).map((r) => ({
+        hora: Number(r.hora),
+        total: r.total,
+      })),
+      ultimosRegistros,
+    };
+  },
+
+  async countByEtiqueta(eventoId: string, etiqueta: string) {
+    return prisma.asistencia.count({
+      where: { eventoId, eliminado: false, etiqueta },
+    });
   },
 };
