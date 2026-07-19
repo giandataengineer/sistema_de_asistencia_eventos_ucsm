@@ -183,6 +183,7 @@ export const asistenciaRepository = {
       salidasPorDia,
       topAsistentes,
       registrosPorDiaSesion,
+      permanenciaData,
     ] = await Promise.all([
       prisma.asistencia.groupBy({
         by: ["dia"],
@@ -210,6 +211,28 @@ export const asistenciaRepository = {
         _count: { id: true },
         orderBy: [{ dia: "asc" }, { sesion: "asc" }],
       }),
+      prisma.$queryRaw`
+        SELECT
+          e.dia,
+          e.sesion,
+          COUNT(*)::int AS pares,
+          ROUND(AVG(EXTRACT(EPOCH FROM (s.fecha_registro - e.fecha_registro)) / 60))::int AS promedio_min,
+          ROUND(MIN(EXTRACT(EPOCH FROM (s.fecha_registro - e.fecha_registro)) / 60))::int AS min_min,
+          ROUND(MAX(EXTRACT(EPOCH FROM (s.fecha_registro - e.fecha_registro)) / 60))::int AS max_min
+        FROM asistencias e
+        INNER JOIN asistencias s
+          ON e.numero_dni = s.numero_dni
+          AND e.evento_id = s.evento_id
+          AND e.dia = s.dia
+          AND e.sesion = s.sesion
+          AND e.tipo = 'entrada'
+          AND s.tipo = 'salida'
+          AND e.eliminado = false
+          AND s.eliminado = false
+        WHERE e.evento_id = ${eventoId}
+        GROUP BY e.dia, e.sesion
+        ORDER BY e.dia, e.sesion
+      ` as Promise<Array<{ dia: number; sesion: number; pares: number; promedio_min: number; min_min: number; max_min: number }>>,
     ]);
 
     const tasaRetencion = totalEntradas > 0
@@ -255,6 +278,14 @@ export const asistenciaRepository = {
         registros: r.registros,
       })),
       ultimosRegistros,
+      permanencia: (permanenciaData as Array<{ dia: number; sesion: number; pares: number; promedio_min: number; min_min: number; max_min: number }>).map((r) => ({
+        dia: r.dia,
+        sesion: r.sesion,
+        pares: r.pares,
+        promedioMin: r.promedio_min,
+        minMin: r.min_min,
+        maxMin: r.max_min,
+      })),
     };
   },
 

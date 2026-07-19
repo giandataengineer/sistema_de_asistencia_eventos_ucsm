@@ -27,47 +27,13 @@ interface KPIs {
   tasaRetencion: number;
 }
 
-interface DiaDistribucion {
-  dia: number;
-  entradas: number;
-  salidas: number;
-  total: number;
-}
-
-interface SesionDistribucion {
-  sesion: number;
-  total: number;
-}
-
-interface HoraDistribucion {
-  hora: number;
-  total: number;
-}
-
-interface DiaSesionDistribucion {
-  dia: number;
-  sesion: number;
-  total: number;
-}
-
-interface TopAsistente {
-  dni: string;
-  apellido: string;
-  nombres: string;
-  etiqueta: string;
-  registros: number;
-}
-
-interface UltimoRegistro {
-  numeroDni: string;
-  apellidoPaterno: string;
-  nombres: string;
-  tipo: string;
-  etiqueta: string;
-  fechaRegistro: string;
-  dia: number;
-  sesion: number;
-}
+interface DiaDistribucion { dia: number; entradas: number; salidas: number; total: number }
+interface SesionDistribucion { sesion: number; total: number }
+interface HoraDistribucion { hora: number; total: number }
+interface DiaSesionDistribucion { dia: number; sesion: number; total: number }
+interface TopAsistente { dni: string; apellido: string; nombres: string; etiqueta: string; registros: number }
+interface Permanencia { dia: number; sesion: number; pares: number; promedioMin: number; minMin: number; maxMin: number }
+interface UltimoRegistro { numeroDni: string; apellidoPaterno: string; nombres: string; tipo: string; etiqueta: string; fechaRegistro: string; dia: number; sesion: number }
 
 interface AnalyticsData {
   kpis: KPIs;
@@ -77,44 +43,217 @@ interface AnalyticsData {
   distribucionPorDiaSesion: DiaSesionDistribucion[];
   topAsistentes: TopAsistente[];
   ultimosRegistros: UltimoRegistro[];
+  permanencia: Permanencia[];
 }
 
-const COLORS = {
-  emerald: { bar: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-500/20" },
-  cyan: { bar: "bg-cyan-500", bg: "bg-cyan-50", text: "text-cyan-600", ring: "ring-cyan-500/20" },
-  rose: { bar: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-600", ring: "ring-rose-500/20" },
-  violet: { bar: "bg-violet-500", bg: "bg-violet-50", text: "text-violet-600", ring: "ring-violet-500/20" },
-  amber: { bar: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-600", ring: "ring-amber-500/20" },
-  blue: { bar: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-600", ring: "ring-blue-500/20" },
-};
+function formatNum(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K`;
+  return n.toString();
+}
 
-function SparkArea({ data, color }: { data: number[]; color: string }) {
+function LineChart({
+  data,
+  xLabels,
+  color = "#10b981",
+  height = 220,
+  yLabel = "",
+}: {
+  data: number[];
+  xLabels: string[];
+  color?: string;
+  height?: number;
+  yLabel?: string;
+}) {
   if (data.length < 2) return null;
+
   const max = Math.max(...data, 1);
-  const w = 200;
-  const h = 48;
-  const pad = 2;
-  const step = (w - pad * 2) / (data.length - 1);
+  const padTop = 20;
+  const padBottom = 32;
+  const padLeft = 52;
+  const padRight = 16;
+  const w = 600;
+  const h = height;
+  const chartH = h - padTop - padBottom;
+  const chartW = w - padLeft - padRight;
+
+  const gridLines = 4;
+  const gridStep = max / gridLines;
+  const gridValues = Array.from({ length: gridLines + 1 }, (_, i) => Math.round(i * gridStep));
 
   const points = data.map((v, i) => ({
-    x: pad + i * step,
-    y: h - pad - ((v / max) * (h - pad * 2)),
+    x: padLeft + (i / (data.length - 1)) * chartW,
+    y: padTop + chartH - (v / max) * chartH,
   }));
 
-  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
-  const area = `${line} L${points[points.length - 1].x},${h} L${points[0].x},${h} Z`;
+  function smoothPath(pts: { x: number; y: number }[]): string {
+    if (pts.length < 2) return "";
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const curr = pts[i];
+      const next = pts[i + 1];
+      const cpx = (curr.x + next.x) / 2;
+      d += ` C${cpx},${curr.y} ${cpx},${next.y} ${next.x},${next.y}`;
+    }
+    return d;
+  }
+
+  const linePath = smoothPath(points);
+  const areaPath = `${linePath} L${points[points.length - 1].x},${padTop + chartH} L${points[0].x},${padTop + chartH} Z`;
+
+  const labelStep = Math.max(1, Math.ceil(xLabels.length / 6));
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12 mt-2" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${height}px`, maxHeight: `${height}px` }}>
       <defs>
-        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+        <linearGradient id={`area-grad-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#grad-${color})`} className={color} />
-      <path d={line} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={color} />
+
+      {gridValues.map((val, i) => {
+        const y = padTop + chartH - (val / max) * chartH;
+        return (
+          <g key={i}>
+            <line x1={padLeft} y1={y} x2={w - padRight} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray={i === 0 ? "0" : "4 3"} />
+            <text x={padLeft - 8} y={y + 4} textAnchor="end" fill="#9ca3af" fontSize="11" fontFamily="system-ui">
+              {yLabel}{formatNum(val)}
+            </text>
+          </g>
+        );
+      })}
+
+      <path d={areaPath} fill={`url(#area-grad-${color.replace("#", "")})`} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke={color} strokeWidth="2" opacity={data[i] > 0 ? 1 : 0.3} />
+      ))}
+
+      {xLabels.map((label, i) => {
+        if (i % labelStep !== 0 && i !== xLabels.length - 1) return null;
+        const x = padLeft + (i / (xLabels.length - 1)) * chartW;
+        return (
+          <text key={i} x={x} y={h - 8} textAnchor="middle" fill="#9ca3af" fontSize="11" fontFamily="system-ui">
+            {label}
+          </text>
+        );
+      })}
     </svg>
+  );
+}
+
+function DualLineChart({
+  data1,
+  data2,
+  xLabels,
+  color1 = "#10b981",
+  color2 = "#06b6d4",
+  label1 = "Serie 1",
+  label2 = "Serie 2",
+  height = 220,
+}: {
+  data1: number[];
+  data2: number[];
+  xLabels: string[];
+  color1?: string;
+  color2?: string;
+  label1?: string;
+  label2?: string;
+  height?: number;
+}) {
+  if (data1.length < 2) return null;
+
+  const max = Math.max(...data1, ...data2, 1);
+  const padTop = 20;
+  const padBottom = 32;
+  const padLeft = 52;
+  const padRight = 16;
+  const w = 600;
+  const h = height;
+  const chartH = h - padTop - padBottom;
+  const chartW = w - padLeft - padRight;
+
+  const gridLines = 4;
+  const gridStep = max / gridLines;
+  const gridValues = Array.from({ length: gridLines + 1 }, (_, i) => Math.round(i * gridStep));
+
+  function toPoints(data: number[]) {
+    return data.map((v, i) => ({
+      x: padLeft + (i / (data.length - 1)) * chartW,
+      y: padTop + chartH - (v / max) * chartH,
+    }));
+  }
+
+  function smoothPath(pts: { x: number; y: number }[]): string {
+    if (pts.length < 2) return "";
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const curr = pts[i];
+      const next = pts[i + 1];
+      const cpx = (curr.x + next.x) / 2;
+      d += ` C${cpx},${curr.y} ${cpx},${next.y} ${next.x},${next.y}`;
+    }
+    return d;
+  }
+
+  const pts1 = toPoints(data1);
+  const pts2 = toPoints(data2);
+  const line1 = smoothPath(pts1);
+  const line2 = smoothPath(pts2);
+  const area1 = `${line1} L${pts1[pts1.length - 1].x},${padTop + chartH} L${pts1[0].x},${padTop + chartH} Z`;
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${height}px`, maxHeight: `${height}px` }}>
+        <defs>
+          <linearGradient id="area-dual-1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color1} stopOpacity="0.15" />
+            <stop offset="100%" stopColor={color1} stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {gridValues.map((val, i) => {
+          const y = padTop + chartH - (val / max) * chartH;
+          return (
+            <g key={i}>
+              <line x1={padLeft} y1={y} x2={w - padRight} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray={i === 0 ? "0" : "4 3"} />
+              <text x={padLeft - 8} y={y + 4} textAnchor="end" fill="#9ca3af" fontSize="11" fontFamily="system-ui">
+                {formatNum(val)}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={area1} fill="url(#area-dual-1)" />
+        <path d={line1} fill="none" stroke={color1} strokeWidth="2.5" strokeLinecap="round" />
+        <path d={line2} fill="none" stroke={color2} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 4" />
+
+        {pts1.map((p, i) => (
+          <circle key={`a${i}`} cx={p.x} cy={p.y} r="3.5" fill="white" stroke={color1} strokeWidth="2" />
+        ))}
+        {pts2.map((p, i) => (
+          <circle key={`b${i}`} cx={p.x} cy={p.y} r="3" fill="white" stroke={color2} strokeWidth="1.5" />
+        ))}
+
+        {xLabels.map((label, i) => {
+          const x = padLeft + (i / (xLabels.length - 1)) * chartW;
+          return (
+            <text key={i} x={x} y={h - 8} textAnchor="middle" fill="#9ca3af" fontSize="11" fontFamily="system-ui">
+              {label}
+            </text>
+          );
+        })}
+      </svg>
+      <div className="flex items-center gap-5 mt-2 ml-14">
+        <span className="flex items-center gap-1.5 text-xs text-muted">
+          <span className="w-4 h-[2.5px] rounded-full" style={{ backgroundColor: color1 }} /> {label1}
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-muted">
+          <span className="w-4 h-[2.5px] rounded-full border-t-2 border-dashed" style={{ borderColor: color2 }} /> {label2}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -146,11 +285,8 @@ export default function AnaliticaPage() {
     return <div className="text-center py-20 text-muted">No se pudieron cargar los datos.</div>;
   }
 
-  const { kpis, distribucionPorDia, distribucionPorSesion, distribucionPorHora, distribucionPorDiaSesion, topAsistentes, ultimosRegistros } = analytics;
+  const { kpis, distribucionPorDia, distribucionPorSesion, distribucionPorHora, distribucionPorDiaSesion, topAsistentes, ultimosRegistros, permanencia } = analytics;
 
-  const hourlyValues = distribucionPorHora.map((h) => h.total);
-  const maxHourly = Math.max(...hourlyValues, 1);
-  const maxDia = Math.max(...distribucionPorDia.map((d) => Math.max(d.entradas, d.salidas)), 1);
   const maxTop = Math.max(...topAsistentes.map((t) => t.registros), 1);
   const maxDiaSesion = Math.max(...distribucionPorDiaSesion.map((ds) => ds.total), 1);
 
@@ -159,133 +295,123 @@ export default function AnaliticaPage() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          {
-            label: "Total Entradas",
-            value: kpis.totalEntradas.toLocaleString(),
-            sub: `${kpis.asistentesUnicos} asistentes unicos`,
-            change: `${kpis.tasaRetencion}%`,
-            changeUp: true,
-            icon: LogIn,
-            c: COLORS.emerald,
-            sparkData: distribucionPorDia.map((d) => d.entradas),
-          },
-          {
-            label: "Total Salidas",
-            value: kpis.totalSalidas.toLocaleString(),
-            sub: `${kpis.totalRegistros.toLocaleString()} registros totales`,
-            change: `${kpis.totalEntradas > 0 ? Math.round((kpis.totalSalidas / kpis.totalEntradas) * 100) : 0}%`,
-            changeUp: false,
-            icon: LogOut,
-            c: COLORS.cyan,
-            sparkData: distribucionPorDia.map((d) => d.salidas),
-          },
-          {
-            label: "Participantes",
-            value: kpis.participantes.toLocaleString(),
-            sub: `${distribucionPorDia.length} dias del evento`,
-            change: `${distribucionPorSesion.length} sesiones`,
-            changeUp: true,
-            icon: Users,
-            c: COLORS.rose,
-            sparkData: distribucionPorSesion.map((s) => s.total),
-          },
-          {
-            label: "Organizadores",
-            value: kpis.organizadores.toString(),
-            sub: "Comision organizadora",
-            change: "Activos",
-            changeUp: true,
-            icon: UserCheck,
-            c: COLORS.violet,
-            sparkData: hourlyValues.length > 1 ? hourlyValues : [1, 1],
-          },
-        ].map((card) => (
-          <div key={card.label} className="bg-white rounded-2xl border border-border/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow">
+          { label: "Total Entradas", value: kpis.totalEntradas, sub: `${kpis.asistentesUnicos} unicos`, pct: `${kpis.tasaRetencion}%`, up: true, icon: LogIn, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+          { label: "Total Salidas", value: kpis.totalSalidas, sub: `${kpis.totalRegistros} registros`, pct: `${kpis.totalEntradas > 0 ? Math.round((kpis.totalSalidas / kpis.totalEntradas) * 100) : 0}%`, up: false, icon: LogOut, iconBg: "bg-cyan-50", iconColor: "text-cyan-600" },
+          { label: "Participantes", value: kpis.participantes, sub: `${distribucionPorDia.length} dias`, pct: `${distribucionPorSesion.length} ses.`, up: true, icon: Users, iconBg: "bg-rose-50", iconColor: "text-rose-600" },
+          { label: "Organizadores", value: kpis.organizadores, sub: "Comision", pct: "Activos", up: true, icon: UserCheck, iconBg: "bg-violet-50", iconColor: "text-violet-600" },
+        ].map((c) => (
+          <div key={c.label} className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[0.7rem] font-medium text-muted tracking-wide">{card.label}</p>
-              <div className={`w-8 h-8 rounded-xl ${card.c.bg} flex items-center justify-center`}>
-                <card.icon className={`w-4 h-4 ${card.c.text}`} />
+              <p className="text-[0.7rem] font-medium text-muted">{c.label}</p>
+              <div className={`w-8 h-8 rounded-xl ${c.iconBg} flex items-center justify-center`}>
+                <c.icon className={`w-4 h-4 ${c.iconColor}`} />
               </div>
             </div>
-            <p className="text-[1.75rem] font-extrabold text-ink leading-tight tracking-tight">{card.value}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`inline-flex items-center gap-0.5 text-[0.65rem] font-semibold ${card.changeUp ? "text-emerald-600" : "text-orange-500"}`}>
-                {card.changeUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {card.change}
+            <p className="text-[1.7rem] font-extrabold text-ink tracking-tight">{c.value.toLocaleString()}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`inline-flex items-center gap-0.5 text-[0.65rem] font-semibold ${c.up ? "text-emerald-600" : "text-orange-500"}`}>
+                {c.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {c.pct}
               </span>
-              <span className="text-[0.6rem] text-muted">{card.sub}</span>
+              <span className="text-[0.6rem] text-muted">{c.sub}</span>
             </div>
-            <SparkArea data={card.sparkData} color={card.c.text} />
           </div>
         ))}
       </div>
 
-      {/* Asistencia por Dia */}
-      <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between">
+      {/* Main chart: Entradas vs Salidas por Dia */}
+      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
           <h2 className="text-[0.9rem] font-bold text-ink">Asistencia por Dia</h2>
-          <div className="flex items-center gap-4 text-[0.65rem]">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Entradas</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-cyan-500" /> Salidas</span>
+          <div className="flex items-center gap-1 text-[0.6rem] text-muted bg-gray-50 px-2.5 py-1.5 rounded-lg">
+            Dia 1 — Dia {distribucionPorDia.length}
           </div>
         </div>
-        <div className="px-6 pb-5 space-y-3">
-          {distribucionPorDia.map((d) => (
-            <div key={d.dia} className="flex items-center gap-4">
-              <div className="w-16 flex-shrink-0">
-                <span className="text-sm font-bold text-ink">Dia {d.dia}</span>
-              </div>
-              <div className="flex-1 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-6 bg-gray-50 rounded-md overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-md transition-all" style={{ width: `${(d.entradas / maxDia) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold text-ink w-14 text-right tabular-nums">{d.entradas.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-6 bg-gray-50 rounded-md overflow-hidden">
-                    <div className="h-full bg-cyan-500 rounded-md transition-all" style={{ width: `${(d.salidas / maxDia) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold text-ink w-14 text-right tabular-nums">{d.salidas.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="p-5">
+          <DualLineChart
+            data1={distribucionPorDia.map((d) => d.entradas)}
+            data2={distribucionPorDia.map((d) => d.salidas)}
+            xLabels={distribucionPorDia.map((d) => `Dia ${d.dia}`)}
+            color1="#10b981"
+            color2="#06b6d4"
+            label1="Entradas"
+            label2="Salidas"
+            height={240}
+          />
         </div>
       </div>
 
+      {/* Hourly chart */}
+      {distribucionPorHora.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-500" />
+              <h2 className="text-[0.9rem] font-bold text-ink">Distribucion Horaria</h2>
+            </div>
+            <span className="text-[0.6rem] text-muted bg-gray-50 px-2.5 py-1.5 rounded-lg">Ingresos por hora</span>
+          </div>
+          <div className="p-5">
+            <LineChart
+              data={distribucionPorHora.map((h) => h.total)}
+              xLabels={distribucionPorHora.map((h) => `${String(h.hora).padStart(2, "0")}:00`)}
+              color="#3b82f6"
+              height={220}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Sessions chart */}
+      {distribucionPorSesion.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-violet-500" />
+              <h2 className="text-[0.9rem] font-bold text-ink">Asistencia por Sesion</h2>
+            </div>
+          </div>
+          <div className="p-5">
+            <LineChart
+              data={distribucionPorSesion.map((s) => s.total)}
+              xLabels={distribucionPorSesion.map((s) => `${s.sesion}° Reg`)}
+              color="#8b5cf6"
+              height={200}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Asistentes */}
-        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <h2 className="text-[0.9rem] font-bold text-ink">Top Asistentes</h2>
-            <span className="text-[0.6rem] text-muted">por sesiones registradas</span>
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-500" />
+              <h2 className="text-[0.9rem] font-bold text-ink">Top Asistentes</h2>
+            </div>
+            <span className="text-[0.6rem] text-muted">sesiones registradas</span>
           </div>
-          <div className="px-6 pb-5 space-y-2.5">
+          <div className="px-6 py-4 space-y-2.5">
             {topAsistentes.map((a, idx) => (
-              <div key={a.dni} className="flex items-center gap-3 group">
+              <div key={a.dni} className="flex items-center gap-3">
                 <span className="text-[0.65rem] text-muted w-4 text-right tabular-nums">{idx + 1}.</span>
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0 ${
-                  a.etiqueta === "organizador"
-                    ? "bg-gradient-to-br from-violet-500 to-purple-600"
-                    : "bg-gradient-to-br from-blue-500 to-indigo-600"
+                  a.etiqueta === "organizador" ? "bg-gradient-to-br from-violet-500 to-purple-600" : "bg-gradient-to-br from-blue-500 to-indigo-600"
                 }`}>
                   {a.apellido.substring(0, 2).toUpperCase()}
                 </div>
-                <div className="w-32 flex-shrink-0">
+                <div className="w-28 flex-shrink-0">
                   <p className="text-xs font-semibold text-ink truncate leading-tight">{a.apellido}</p>
-                  <p className="text-[0.6rem] text-muted truncate">{a.nombres.split(" ")[0]} · {a.dni}</p>
+                  <p className="text-[0.6rem] text-muted truncate">{a.nombres.split(" ")[0]}</p>
                 </div>
                 <div className="flex-1 flex items-center gap-2">
                   <div className="flex-1 h-5 bg-gray-50 rounded overflow-hidden">
-                    <div
-                      className={`h-full rounded transition-all ${a.etiqueta === "organizador" ? "bg-violet-500" : "bg-blue-500"}`}
-                      style={{ width: `${(a.registros / maxTop) * 100}%` }}
-                    />
+                    <div className={`h-full rounded ${a.etiqueta === "organizador" ? "bg-violet-500" : "bg-blue-500"}`} style={{ width: `${(a.registros / maxTop) * 100}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-ink w-8 text-right tabular-nums">{a.registros}</span>
+                  <span className="text-xs font-bold text-ink w-6 text-right tabular-nums">{a.registros}</span>
                 </div>
-                <span className={`text-[0.55rem] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                <span className={`text-[0.55rem] font-semibold px-2 py-0.5 rounded-full ${
                   a.etiqueta === "organizador" ? "bg-violet-50 text-violet-600" : "bg-blue-50 text-blue-600"
                 }`}>
                   {a.etiqueta === "organizador" ? "ORG" : "PART"}
@@ -296,11 +422,12 @@ export default function AnaliticaPage() {
         </div>
 
         {/* Dia × Sesion */}
-        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4">
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-2 border-b border-gray-100">
+            <Database className="w-4 h-4 text-emerald-500" />
             <h2 className="text-[0.9rem] font-bold text-ink">Desglose Dia × Sesion</h2>
           </div>
-          <div className="px-6 pb-5 space-y-2">
+          <div className="px-6 py-4 space-y-2">
             {distribucionPorDiaSesion.map((ds) => (
               <div key={`${ds.dia}-${ds.sesion}`} className="flex items-center gap-3 py-0.5">
                 <div className="w-16 flex-shrink-0 flex items-center gap-1.5">
@@ -308,10 +435,7 @@ export default function AnaliticaPage() {
                   <span className="text-xs font-bold text-ink">S{ds.sesion}</span>
                 </div>
                 <div className="flex-1 h-5 bg-gray-50 rounded overflow-hidden">
-                  <div
-                    className="h-full rounded bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all"
-                    style={{ width: `${Math.max((ds.total / maxDiaSesion) * 100, 2)}%` }}
-                  />
+                  <div className="h-full rounded bg-gradient-to-r from-emerald-500 to-cyan-500" style={{ width: `${Math.max((ds.total / maxDiaSesion) * 100, 2)}%` }} />
                 </div>
                 <span className="text-xs font-bold text-ink w-10 text-right tabular-nums">{ds.total}</span>
               </div>
@@ -320,53 +444,52 @@ export default function AnaliticaPage() {
         </div>
       </div>
 
-      {/* Distribucion Horaria */}
-      {distribucionPorHora.length > 0 && (
-        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <h2 className="text-[0.9rem] font-bold text-ink">Distribucion Horaria</h2>
-            <span className="text-[0.6rem] text-muted">Hora de registro (UTC)</span>
+      {/* Permanencia */}
+      {permanencia.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <h2 className="text-[0.9rem] font-bold text-ink">Permanencia (Salida − Entrada)</h2>
+            </div>
+            <span className="text-[0.6rem] text-muted bg-gray-50 px-2.5 py-1.5 rounded-lg">Solo sesiones con entrada y salida</span>
           </div>
-          <div className="px-6 pb-5">
-            <div className="flex items-end gap-1 h-36">
-              {distribucionPorHora.map((h) => {
-                const pct = (h.total / maxHourly) * 100;
-                return (
-                  <div key={h.hora} className="flex-1 flex flex-col items-center gap-1 group cursor-default">
-                    <span className="text-[0.6rem] font-bold text-ink opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
-                      {h.total}
-                    </span>
-                    <div className="w-full relative">
-                      <div
-                        className="w-full rounded-t-md bg-gradient-to-t from-indigo-500 to-blue-400 group-hover:from-indigo-600 group-hover:to-blue-500 transition-all"
-                        style={{ height: `${Math.max(pct, 3)}%`, minHeight: "4px", paddingTop: `${Math.max(pct, 3)}%` }}
-                      />
-                    </div>
-                    <span className="text-[0.5rem] text-muted tabular-nums">{String(h.hora).padStart(2, "0")}</span>
+          <div className="p-5">
+            <LineChart
+              data={permanencia.map((p) => p.promedioMin)}
+              xLabels={permanencia.map((p) => `D${p.dia}S${p.sesion}`)}
+              color="#f59e0b"
+              height={200}
+              yLabel=""
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+              {permanencia.map((p) => (
+                <div key={`perm-${p.dia}-${p.sesion}`} className="bg-amber-50/50 rounded-xl p-3 border border-amber-100/60">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[0.6rem] font-medium text-muted bg-white rounded px-1.5 py-0.5">D{p.dia}</span>
+                    <span className="text-xs font-bold text-ink">S{p.sesion}</span>
                   </div>
-                );
-              })}
+                  <p className="text-lg font-extrabold text-amber-700 tabular-nums">{p.promedioMin} min</p>
+                  <p className="text-[0.6rem] text-muted mt-0.5">{p.pares} pares · {p.minMin}–{p.maxMin} min</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Bottom row: Data Quality + Pipeline */}
+      {/* Data Quality + Pipeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4 flex items-center gap-2">
-            <Database className="w-4 h-4 text-violet-500" />
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-2 border-b border-gray-100">
+            <TrendingUp className="w-4 h-4 text-violet-500" />
             <h2 className="text-[0.9rem] font-bold text-ink">Calidad de Datos</h2>
           </div>
-          <div className="px-6 pb-5 space-y-4">
+          <div className="px-6 py-4 space-y-4">
             {[
               { label: "Completitud", value: kpis.totalRegistros > 0 ? 100 : 0, color: "from-emerald-400 to-green-500" },
               { label: "Consistencia", value: kpis.totalEntradas >= kpis.totalSalidas ? 100 : 85, color: "from-cyan-400 to-teal-500" },
-              {
-                label: "Cobertura",
-                value: kpis.asistentesUnicos > 0 ? Math.min(Math.round((kpis.totalEntradas / kpis.asistentesUnicos) * 100), 100) : 0,
-                color: "from-blue-400 to-indigo-500",
-              },
+              { label: "Cobertura", value: kpis.asistentesUnicos > 0 ? Math.min(Math.round((kpis.totalEntradas / kpis.asistentesUnicos) * 100), 100) : 0, color: "from-blue-400 to-indigo-500" },
             ].map((m) => (
               <div key={m.label}>
                 <div className="flex items-center justify-between mb-2">
@@ -374,22 +497,19 @@ export default function AnaliticaPage() {
                   <span className="text-sm font-extrabold text-ink tabular-nums">{m.value}%</span>
                 </div>
                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r ${m.color} transition-all`}
-                    style={{ width: `${m.value}%` }}
-                  />
+                  <div className={`h-full rounded-full bg-gradient-to-r ${m.color}`} style={{ width: `${m.value}%` }} />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 flex items-center gap-2 border-b border-gray-100">
+            <Activity className="w-4 h-4 text-emerald-500" />
             <h2 className="text-[0.9rem] font-bold text-ink">Resumen del Pipeline</h2>
           </div>
-          <div className="px-6 pb-5">
+          <div className="px-6 py-4">
             {[
               { label: "Fuente de datos", value: "Escaner DNI (PDF417)" },
               { label: "Registros procesados", value: kpis.totalRegistros.toLocaleString() },
@@ -415,25 +535,18 @@ export default function AnaliticaPage() {
       </div>
 
       {/* Ultimos Registros */}
-      <div className="bg-white rounded-2xl border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-rose-500" />
-            <h2 className="text-[0.9rem] font-bold text-ink">Ultimos Registros</h2>
-          </div>
-          <span className="text-[0.6rem] text-muted bg-gray-100 px-2 py-1 rounded-full">Tiempo real</span>
+      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+          <h2 className="text-[0.9rem] font-bold text-ink">Ultimos Registros</h2>
+          <span className="text-[0.6rem] text-muted bg-gray-50 px-2.5 py-1.5 rounded-lg">Tiempo real</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">#</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">DNI</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Nombre</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Tipo</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Etiqueta</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Sesion</th>
-                <th className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">Hora</th>
+                {["#", "DNI", "Nombre", "Tipo", "Etiqueta", "Sesion", "Hora"].map((h) => (
+                  <th key={h} className="px-6 py-3 text-left font-semibold text-muted text-[0.65rem] tracking-wider uppercase">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
