@@ -172,9 +172,45 @@ export const asistenciaRepository = {
       }),
     ]);
 
+    const [
+      entradasPorDia,
+      salidasPorDia,
+      topAsistentes,
+      registrosPorDiaSesion,
+    ] = await Promise.all([
+      prisma.asistencia.groupBy({
+        by: ["dia"],
+        where: { eventoId, eliminado: false, tipo: "entrada" },
+        _count: { id: true },
+        orderBy: { dia: "asc" },
+      }),
+      prisma.asistencia.groupBy({
+        by: ["dia"],
+        where: { eventoId, eliminado: false, tipo: "salida" },
+        _count: { id: true },
+        orderBy: { dia: "asc" },
+      }),
+      prisma.$queryRaw`
+        SELECT numero_dni, apellido_paterno, nombres, etiqueta, COUNT(*)::int AS registros
+        FROM asistencias
+        WHERE evento_id = ${eventoId} AND eliminado = false AND tipo = 'entrada'
+        GROUP BY numero_dni, apellido_paterno, nombres, etiqueta
+        ORDER BY registros DESC
+        LIMIT 10
+      ` as Promise<Array<{ numero_dni: string; apellido_paterno: string; nombres: string; etiqueta: string; registros: number }>>,
+      prisma.asistencia.groupBy({
+        by: ["dia", "sesion"],
+        where: { eventoId, eliminado: false, tipo: "entrada" },
+        _count: { id: true },
+        orderBy: [{ dia: "asc" }, { sesion: "asc" }],
+      }),
+    ]);
+
     const tasaRetencion = totalEntradas > 0
       ? Math.round((totalSalidas / totalEntradas) * 100)
       : 0;
+
+    const salidasMap = new Map(salidasPorDia.map((r) => [r.dia, r._count.id]));
 
     return {
       kpis: {
@@ -186,8 +222,10 @@ export const asistenciaRepository = {
         organizadores,
         tasaRetencion,
       },
-      distribucionPorDia: registrosPorDia.map((r) => ({
+      distribucionPorDia: entradasPorDia.map((r) => ({
         dia: r.dia,
+        entradas: r._count.id,
+        salidas: salidasMap.get(r.dia) ?? 0,
         total: r._count.id,
       })),
       distribucionPorSesion: registrosPorSesion.map((r) => ({
@@ -197,6 +235,18 @@ export const asistenciaRepository = {
       distribucionPorHora: (registrosPorHora as Array<{ hora: number; total: number }>).map((r) => ({
         hora: Number(r.hora),
         total: r.total,
+      })),
+      distribucionPorDiaSesion: registrosPorDiaSesion.map((r) => ({
+        dia: r.dia,
+        sesion: r.sesion,
+        total: r._count.id,
+      })),
+      topAsistentes: (topAsistentes as Array<{ numero_dni: string; apellido_paterno: string; nombres: string; etiqueta: string; registros: number }>).map((r) => ({
+        dni: r.numero_dni,
+        apellido: r.apellido_paterno,
+        nombres: r.nombres,
+        etiqueta: r.etiqueta,
+        registros: r.registros,
       })),
       ultimosRegistros,
     };
