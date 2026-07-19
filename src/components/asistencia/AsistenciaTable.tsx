@@ -10,19 +10,21 @@ interface AsistenciaTableProps {
   onDelete: (id: string, nombre: string) => void;
 }
 
-function calcularPermanencia(registros: Asistencia[], r: Asistencia): string | null {
-  if (r.tipo !== "salida") return null;
-
+function calcularPermanencia(registros: Asistencia[], r: Asistencia): string {
   const entrada = registros.find(
     (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.sesion === r.sesion && e.tipo === "entrada" && !e.eliminado
   );
-  if (!entrada) return null;
+  const salida = registros.find(
+    (e) => e.numeroDni === r.numeroDni && e.dia === r.dia && e.sesion === r.sesion && e.tipo === "salida" && !e.eliminado
+  );
+
+  if (!entrada || !salida) return "No corresponde";
 
   const msEntrada = new Date(entrada.fechaRegistro).getTime();
-  const msSalida = new Date(r.fechaRegistro).getTime();
+  const msSalida = new Date(salida.fechaRegistro).getTime();
   const diffMs = msSalida - msEntrada;
 
-  if (diffMs < 0) return null;
+  if (diffMs < 0) return "No corresponde";
 
   const horas = Math.floor(diffMs / 3600000);
   const minutos = Math.floor((diffMs % 3600000) / 60000);
@@ -33,7 +35,7 @@ function calcularPermanencia(registros: Asistencia[], r: Asistencia): string | n
 
 export default function AsistenciaTable({ registros, onDelete }: AsistenciaTableProps) {
   const permanenciaMap = useMemo(() => {
-    const map = new Map<string, string | null>();
+    const map = new Map<string, string>();
     for (const r of registros) {
       map.set(r.id, calcularPermanencia(registros, r));
     }
@@ -103,13 +105,13 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                   </td>
                   <td className="px-3 py-2.5 text-muted">{formatTimePeru(new Date(r.fechaRegistro))}</td>
                   <td className="px-3 py-2.5 text-center">
-                    {permanencia ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                        {permanencia}
-                      </span>
-                    ) : r.tipo === "entrada" ? (
-                      <span className="text-xs text-muted">—</span>
-                    ) : null}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      permanencia === "No corresponde"
+                        ? "bg-gray-100 text-gray-500"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {permanencia}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <button
@@ -165,11 +167,13 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <div className="flex items-center gap-3 mt-2 text-xs text-muted">
                 <span>#{i + 1}</span>
                 <span>{formatTimePeru(new Date(r.fechaRegistro))}</span>
-                {permanencia && (
-                  <span className="px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700">
-                    {permanencia}
-                  </span>
-                )}
+                <span className={`px-2 py-0.5 rounded-full font-bold ${
+                  permanencia === "No corresponde"
+                    ? "bg-gray-100 text-gray-500"
+                    : "bg-blue-100 text-blue-700"
+                }`}>
+                  {permanencia}
+                </span>
               </div>
             </div>
           );
