@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_SCRIPT="$SCRIPT_DIR/backup-db.sh"
-LOG_FILE="/var/log/asistepro-backup.log"
+LOG_FILE="/var/log/sistema-asistencia-ucsm-backup.log"
 
 echo "=== Configurando Cron Job para Backups Diarios ==="
 

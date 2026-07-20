@@ -227,8 +227,8 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 text-center">
-          <p className="text-[0.7rem] text-white/30 tracking-wider">
-            Sistema de Control de Asistencia &middot; Gian Cruz
+          <p className="text-sm text-white/40 tracking-wide font-medium">
+            Desarrollado por: Gian Cruz
           </p>
         </div>
       </div>

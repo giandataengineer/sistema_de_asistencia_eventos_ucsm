@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="p-4 lg:p-6 animate-fadeIn">
           {children}
         </div>
-        <footer className="py-4 text-center text-xs text-muted border-t border-border mt-8">
+        <footer className="py-5 text-center text-sm text-muted font-medium border-t border-border mt-8">
           Desarrollado por: Gian Cruz
         </footer>
       </main>
