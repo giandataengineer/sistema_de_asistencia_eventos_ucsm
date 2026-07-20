@@ -10,6 +10,7 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
   "X-DNS-Prefetch-Control": "off",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
 function getClientIP(request: NextRequest): string {
@@ -39,11 +40,28 @@ function applyHeaders(response: NextResponse, extra?: Record<string, string>): N
   return response;
 }
 
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
     return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/api/") && MUTATION_METHODS.has(request.method)) {
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host");
+    if (origin && host) {
+      try {
+        const originHost = new URL(origin).host;
+        if (originHost !== host) {
+          return applyHeaders(NextResponse.json({ error: "Origen no autorizado" }, { status: 403 }));
+        }
+      } catch {
+        return applyHeaders(NextResponse.json({ error: "Origen invalido" }, { status: 403 }));
+      }
+    }
   }
 
   if (pathname.startsWith("/api/")) {
