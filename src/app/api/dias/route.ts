@@ -64,10 +64,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "dia requerido" }, { status: 400 });
     }
 
-    await prisma.diaEvento.delete({
-      where: {
-        eventoId_dia: { eventoId: guard.session.eventoId, dia: Number(dia) },
-      },
+    await prisma.diaEvento.deleteMany({
+      where: { eventoId: guard.session.eventoId, dia: Number(dia) },
     });
 
     return NextResponse.json({ ok: true });
