@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
 import { useAsistencias } from "@/hooks/useAsistencias";
-import BarcodeScanner from "@/components/scanner/BarcodeScanner";
-import ManualInput from "@/components/scanner/ManualInput";
-import ExternalScanner from "@/components/scanner/ExternalScanner";
 import AsistenciaTable from "@/components/asistencia/AsistenciaTable";
 import DeleteModal from "@/components/asistencia/DeleteModal";
+
+const BarcodeScanner = dynamic(() => import("@/components/scanner/BarcodeScanner"), { ssr: false });
+const ManualInput = dynamic(() => import("@/components/scanner/ManualInput"), { ssr: false });
+const ExternalScanner = dynamic(() => import("@/components/scanner/ExternalScanner"), { ssr: false });
 import { toast } from "sonner";
 import {
   Camera,
@@ -116,35 +118,30 @@ export default function RegistroPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [metaRes, diaRes] = await Promise.all([
-          fetch("/api/asistencias/metadata"),
-          fetch("/api/asistencias/dia-actual"),
-          fetchDiasConfig(),
-        ]);
+        const res = await fetch("/api/registro/init");
+        if (!res.ok) { setAvailableDias([1]); return; }
+        const init = await res.json();
 
-        const meta = metaRes.ok ? await metaRes.json() : { dias: [] };
-        const diaData = diaRes.ok ? await diaRes.json() : { dia: 1, totalDias: 1, fechas: {} };
+        setFechas(init.fechas ?? {});
+        setDiasConfig(init.diasConfig ?? []);
 
-        setFechas(diaData.fechas ?? {});
-
-        const diasFromDb: number[] = meta.dias ?? [];
+        const diasFromDb: number[] = init.diasMeta ?? [];
         const allDias: number[] = [];
-        for (let i = 1; i <= (diaData.totalDias ?? 1); i++) {
-          allDias.push(i);
-        }
-        const merged = [...new Set([...allDias, ...diasFromDb])].sort((a, b) => a - b);
+        for (let i = 1; i <= (init.totalDias ?? 1); i++) allDias.push(i);
+        const diasFromConfig = (init.diasConfig ?? []).map((d: DiaConfig) => d.dia);
+        const merged = [...new Set([...allDias, ...diasFromDb, ...diasFromConfig])].sort((a, b) => a - b);
         setAvailableDias(merged);
 
         if (!initializedRef.current && merged.length > 0) {
           initializedRef.current = true;
-          const current = diasFromDb.includes(diaData.dia) ? diaData.dia : merged[merged.length - 1];
+          const current = diasFromDb.includes(init.diaActual) ? init.diaActual : merged[merged.length - 1];
           setSelectedDia(current);
         }
       } catch {
         setAvailableDias([1]);
       }
     })();
-  }, [fetchDiasConfig]);
+  }, []);
 
   const currentDiaConfig = diasConfig.find((d) => d.dia === selectedDia);
   const tipoAsistenciaDia: TipoAsistenciaDia = currentDiaConfig?.tipoAsistencia ?? "entrada_salida";
