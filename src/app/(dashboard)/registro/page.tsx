@@ -267,11 +267,42 @@ export default function RegistroPage() {
       const tipoLabel = tipoRegistro === "entrada" ? "ENTRADA" : "SALIDA";
 
       try {
+        // 1. RENIEC lookup FIRST to get real names
+        const reniecResult = await consultarDni(dni);
+        const nombres = reniecResult.success && reniecResult.data
+          ? reniecResult.data
+          : { nombres: `DNI ${dni}`, apellidoPaterno: "POR VERIFICAR", apellidoMaterno: "" };
+
+        // 2. Check payment with RENIEC names against Excel list
+        const pagoResult = await verificarPago(
+          nombres.apellidoPaterno,
+          nombres.apellidoMaterno,
+          nombres.nombres
+        );
+
+        // If participant list has more complete name, use it
+        if (pagoResult.found && pagoResult.nombreCompleto) {
+          const nc = pagoResult.nombreCompleto;
+          const reniecParts = (nombres.nombres || "").split(" ").filter(Boolean);
+          const listParts = nc.nombres.split(" ").filter(Boolean);
+          if (listParts.length > reniecParts.length) {
+            nombres.nombres = nc.nombres;
+          }
+          if (!nombres.apellidoMaterno && nc.apellidoMaterno) {
+            nombres.apellidoMaterno = nc.apellidoMaterno;
+          }
+        }
+
+        // 3. Show payment status
+        setPaymentStatus(pagoResult);
+        setShowPaymentModal(true);
+
+        // 4. Register attendance WITH real names
         const regResult = await registrar({
           numeroDni: dni,
-          apellidoPaterno: "...",
-          apellidoMaterno: null,
-          nombres: "Registrando",
+          apellidoPaterno: nombres.apellidoPaterno,
+          apellidoMaterno: nombres.apellidoMaterno || null,
+          nombres: nombres.nombres,
           tipoDni: "electronico",
           tipo: tipoRegistro,
           sesion: activeModuleId,
@@ -279,66 +310,16 @@ export default function RegistroPage() {
         });
 
         if (regResult.success) {
-          toast.success(`${tipoLabel} - DNI ${dni} (Dia ${selectedDia}, ${activeModuleId}° Reg)`, { duration: 1200 });
-          setSuccessName(`${tipoLabel} - ${dni}`);
+          const nombreCompleto = `${nombres.apellidoPaterno} ${nombres.apellidoMaterno || ""} ${nombres.nombres}`.trim();
+          toast.success(`${tipoLabel} - ${nombreCompleto} (Dia ${selectedDia})`, { duration: 2000 });
+          setSuccessName(`${tipoLabel} - ${nombreCompleto}`);
           setShowSuccessModal(true);
-          setLastManualResult({ nombre: `DNI ${dni} - ${tipoLabel}`, success: true });
-          setTimeout(() => setShowSuccessModal(false), 700);
+          setLastManualResult({ nombre: `${nombreCompleto} - ${tipoLabel}`, success: true });
+          setTimeout(() => setShowSuccessModal(false), 1500);
           debouncedRefresh();
-
-          // RENIEC lookup + payment verification in parallel
-          consultarDni(dni).then(async (reniecResult) => {
-            const patchData = reniecResult.success && reniecResult.data
-              ? reniecResult.data
-              : { nombres: `DNI ${dni}`, apellidoPaterno: "POR VERIFICAR", apellidoMaterno: "" };
-
-            // Check payment status
-            const pagoResult = await verificarPago(
-              patchData.apellidoPaterno,
-              patchData.apellidoMaterno,
-              patchData.nombres
-            );
-            setPaymentStatus(pagoResult);
-            setShowPaymentModal(true);
-
-            // If participant found with more complete name, use it
-            if (pagoResult.found && pagoResult.nombreCompleto) {
-              const nc = pagoResult.nombreCompleto;
-              const reniecNombres = patchData.nombres || "";
-              const reniecParts = reniecNombres.split(" ").filter(Boolean);
-              const listParts = nc.nombres.split(" ").filter(Boolean);
-
-              // If RENIEC gave fewer name parts, use participant list's full name
-              if (listParts.length > reniecParts.length) {
-                patchData.nombres = nc.nombres;
-              }
-              if (!patchData.apellidoMaterno && nc.apellidoMaterno) {
-                patchData.apellidoMaterno = nc.apellidoMaterno;
-              }
-            }
-
-            fetch(`/api/asistencias/${regResult.data.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(patchData),
-            }).then(() => debouncedRefresh());
-          });
         } else if (regResult.duplicado) {
           toast.warning(regResult.error, { duration: 2000 });
           setLastManualResult({ nombre: regResult.error || "Ya registrado", success: false });
-
-          // Still check payment for duplicate scans
-          consultarDni(dni).then(async (reniecResult) => {
-            if (reniecResult.success && reniecResult.data) {
-              const pagoResult = await verificarPago(
-                reniecResult.data.apellidoPaterno,
-                reniecResult.data.apellidoMaterno,
-                reniecResult.data.nombres
-              );
-              setPaymentStatus(pagoResult);
-              setShowPaymentModal(true);
-            }
-          });
         } else {
           toast.error(regResult.error || "Error al registrar");
           setLastManualResult({ nombre: regResult.error || "Error al registrar", success: false });
