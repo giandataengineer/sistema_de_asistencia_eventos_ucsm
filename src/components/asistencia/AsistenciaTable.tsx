@@ -30,6 +30,7 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">DNI</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Apellidos y Nombres</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Tipo</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Pago</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Etiqueta</th>
               <th className="px-3 py-2.5 text-center font-semibold text-xs uppercase tracking-wider">Sesión</th>
               <th className="px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wider">Hora</th>
@@ -56,6 +57,17 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                       r.tipo === "salida" ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-700"
                     }`}>
                       {r.tipo === "salida" ? "Salida" : "Entrada"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      r.estadoPago === "FINALIZADO"
+                        ? "bg-green-100 text-green-700"
+                        : r.estadoPago === "NO REGISTRADO" || !r.estadoPago
+                          ? "bg-gray-100 text-gray-500"
+                          : "bg-red-100 text-red-600"
+                    }`}>
+                      {r.estadoPago === "FINALIZADO" ? "Pagado" : r.estadoPago === "NO REGISTRADO" || !r.estadoPago ? "N/A" : "Pendiente"}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">
@@ -118,12 +130,18 @@ export default function AsistenciaTable({ registros, onDelete }: AsistenciaTable
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    r.estadoPago === "FINALIZADO"
+                      ? "bg-green-100 text-green-700"
+                      : r.estadoPago === "NO REGISTRADO" || !r.estadoPago
+                        ? "bg-gray-100 text-gray-500"
+                        : "bg-red-100 text-red-600"
+                  }`}>
+                    {r.estadoPago === "FINALIZADO" ? "Pagado" : r.estadoPago === "NO REGISTRADO" || !r.estadoPago ? "N/A" : "Pendiente"}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                     r.tipo === "salida" ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-700"
                   }`}>
                     {r.tipo === "salida" ? "Salida" : "Entrada"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
-                    {r.sesion}°
                   </span>
                   <button
                     onClick={() => onDelete(r.id, nombreCompleto)}

@@ -85,6 +85,7 @@ model Asistencia {
   eventoId        String    @map("evento_id")
   registradoPor   String    @map("registrado_por")
   fechaRegistro   DateTime  @default(now()) @map("fecha_registro")
+  estadoPago      String?   @map("estado_pago") @db.VarChar(30)
   eliminado       Boolean   @default(false)
   eliminadoAt     DateTime? @map("eliminado_at")
 

@@ -53,3 +53,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const guard = await apiGuard(req);
+  if (isGuardError(guard)) return guard;
+
+  try {
+    const { dia } = await req.json();
+    if (!dia) {
+      return NextResponse.json({ error: "dia requerido" }, { status: 400 });
+    }
+
+    await prisma.diaEvento.delete({
+      where: {
+        eventoId_dia: { eventoId: guard.session.eventoId, dia: Number(dia) },
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Error al eliminar dia" }, { status: 500 });
+  }
+}

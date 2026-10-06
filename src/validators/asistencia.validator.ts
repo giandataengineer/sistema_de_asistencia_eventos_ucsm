@@ -27,6 +27,7 @@ export const createAsistenciaSchema = z.object({
   dia: z.number().int().min(1).optional(),
   sesion: z.number().int().min(1).max(10).optional(),
   tipo: z.enum(["entrada", "salida"]).optional(),
+  estadoPago: z.string().max(30).optional(),
 });
 
 export type CreateAsistenciaInput = z.infer<typeof createAsistenciaSchema>;

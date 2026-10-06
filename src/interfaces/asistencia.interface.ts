@@ -12,6 +12,7 @@ export interface Asistencia {
   eventoId: string;
   registradoPor: string;
   fechaRegistro: Date;
+  estadoPago: string | null;
   eliminado: boolean;
   permanencia?: string;
 }
@@ -26,6 +27,7 @@ export interface AsistenciaCreate {
   dia?: number;
   sesion?: number;
   tipo?: string;
+  estadoPago?: string;
   eventoId: string;
   registradoPor: string;
 }

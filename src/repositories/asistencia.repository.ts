@@ -14,6 +14,7 @@ export const asistenciaRepository = {
         dia: data.dia ?? 1,
         sesion: data.sesion ?? 1,
         tipo: data.tipo ?? "entrada",
+        estadoPago: data.estadoPago ?? null,
         eventoId: data.eventoId,
         registradoPor: data.registradoPor,
       },

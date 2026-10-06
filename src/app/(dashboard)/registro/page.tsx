@@ -297,7 +297,7 @@ export default function RegistroPage() {
         setPaymentStatus(pagoResult);
         setShowPaymentModal(true);
 
-        // 4. Register attendance WITH real names
+        // 4. Register attendance WITH real names and payment status
         const regResult = await registrar({
           numeroDni: dni,
           apellidoPaterno: nombres.apellidoPaterno,
@@ -307,6 +307,7 @@ export default function RegistroPage() {
           tipo: tipoRegistro,
           sesion: activeModuleId,
           dia: selectedDia,
+          estadoPago: pagoResult.estadoPago || "NO REGISTRADO",
         });
 
         if (regResult.success) {
@@ -334,6 +335,29 @@ export default function RegistroPage() {
     },
     [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId, selectedDia, verificarPago]
   );
+
+  const handleDeleteDia = async (dia: number) => {
+    try {
+      const res = await fetch("/api/dias", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dia }),
+      });
+      if (res.ok) {
+        setAvailableDias((prev) => prev.filter((d) => d !== dia));
+        await fetchDiasConfig();
+        if (selectedDia === dia) {
+          const remaining = availableDias.filter((d) => d !== dia);
+          setSelectedDia(remaining.length > 0 ? remaining[0] : null);
+        }
+        toast.success(`Dia ${dia} eliminado`);
+      } else {
+        toast.error("Error al eliminar dia");
+      }
+    } catch {
+      toast.error("Error de conexion");
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -449,24 +473,36 @@ export default function RegistroPage() {
           <span className="text-sm font-medium text-ink">Fecha:</span>
         </div>
         <div className="flex items-center gap-1 p-1 bg-white border border-border rounded-xl shadow-sm">
-          {availableDias.map((dia) => (
-            <button
-              key={dia}
-              onClick={() => setSelectedDia(dia)}
-              className={`flex flex-col items-center px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
-                selectedDia === dia
-                  ? "bg-primary text-accent shadow-sm"
-                  : "text-muted hover:text-ink hover:bg-surface-alt"
-              }`}
-            >
-              <span>Dia {dia}</span>
-              {fechas[dia] && (
-                <span className={`text-[0.6rem] font-medium mt-0.5 ${selectedDia === dia ? "text-accent/80" : "text-muted"}`}>
-                  {formatFechaDia(fechas[dia])}
-                </span>
-              )}
-            </button>
-          ))}
+          {availableDias.map((dia) => {
+            const diaConf = diasConfig.find((d) => d.dia === dia);
+            const fechaDia = diaConf?.fecha ? diaConf.fecha.split("T")[0] : fechas[dia];
+            return (
+              <div key={dia} className="relative group">
+                <button
+                  onClick={() => setSelectedDia(dia)}
+                  className={`flex flex-col items-center px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                    selectedDia === dia
+                      ? "bg-primary text-accent shadow-sm"
+                      : "text-muted hover:text-ink hover:bg-surface-alt"
+                  }`}
+                >
+                  <span>Dia {dia}</span>
+                  {fechaDia && (
+                    <span className={`text-[0.6rem] font-medium mt-0.5 ${selectedDia === dia ? "text-accent/80" : "text-muted"}`}>
+                      {formatFechaDia(fechaDia)}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteDia(dia); }}
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[0.55rem] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title={`Eliminar Dia ${dia}`}
+                >
+                  x
+                </button>
+              </div>
+            );
+          })}
           <button
             onClick={() => {
               setNewDiaNum(availableDias.length > 0 ? Math.max(...availableDias) + 1 : 1);

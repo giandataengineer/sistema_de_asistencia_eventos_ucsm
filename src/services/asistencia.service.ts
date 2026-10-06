@@ -50,6 +50,7 @@ export const asistenciaService = {
             apellidoPaterno: input.apellidoPaterno,
             apellidoMaterno: input.apellidoMaterno,
             nombres: input.nombres,
+            estadoPago: input.estadoPago ?? null,
             registradoPor,
           },
         });
