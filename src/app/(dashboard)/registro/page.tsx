@@ -105,15 +105,6 @@ export default function RegistroPage() {
 
   const { data, fetchAsistencias, registrar, eliminar, consultarDni, verificarPago } = useAsistencias();
 
-  const fetchDiasConfig = useCallback(async () => {
-    try {
-      const res = await fetch("/api/dias");
-      if (res.ok) {
-        const result = await res.json();
-        setDiasConfig(result.dias ?? []);
-      }
-    } catch { /* silent */ }
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -122,20 +113,21 @@ export default function RegistroPage() {
         if (!res.ok) { setAvailableDias([1]); return; }
         const init = await res.json();
 
-        setFechas(init.fechas ?? {});
-        setDiasConfig(init.diasConfig ?? []);
+        const config = (init.diasConfig ?? []) as DiaConfig[];
+        setDiasConfig(config);
 
-        const diasFromDb: number[] = init.diasMeta ?? [];
-        const allDias: number[] = [];
-        for (let i = 1; i <= (init.totalDias ?? 1); i++) allDias.push(i);
-        const diasFromConfig = (init.diasConfig ?? []).map((d: DiaConfig) => d.dia);
-        const merged = [...new Set([...allDias, ...diasFromDb, ...diasFromConfig])].sort((a, b) => a - b);
-        setAvailableDias(merged);
+        const dias = config.map((d: DiaConfig) => d.dia).sort((a: number, b: number) => a - b);
+        setAvailableDias(dias.length > 0 ? dias : []);
 
-        if (!initializedRef.current && merged.length > 0) {
+        const fechasMap: Record<number, string> = {};
+        for (const d of config) {
+          if (d.fecha) fechasMap[d.dia] = typeof d.fecha === "string" ? d.fecha.split("T")[0] : d.fecha;
+        }
+        setFechas(fechasMap);
+
+        if (!initializedRef.current && dias.length > 0) {
           initializedRef.current = true;
-          const current = diasFromDb.includes(init.diaActual) ? init.diaActual : merged[merged.length - 1];
-          setSelectedDia(current);
+          setSelectedDia(dias.includes(init.diaActual) ? init.diaActual : dias[0]);
         }
       } catch {
         setAvailableDias([1]);
@@ -235,10 +227,7 @@ export default function RegistroPage() {
       if (res.ok) {
         toast.success(`Dia ${newDiaNum} creado`);
         setShowDiaModal(false);
-        if (!availableDias.includes(newDiaNum)) {
-          setAvailableDias((prev) => [...prev, newDiaNum].sort((a, b) => a - b));
-        }
-        await fetchDiasConfig();
+        await reloadDias();
         setSelectedDia(newDiaNum);
       } else {
         const err = await res.json();
@@ -333,15 +322,29 @@ export default function RegistroPage() {
     [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId, selectedDia, verificarPago]
   );
 
+  const reloadDias = useCallback(async () => {
+    const res = await fetch("/api/dias");
+    if (!res.ok) return;
+    const result = await res.json();
+    const config = (result.dias ?? []) as DiaConfig[];
+    setDiasConfig(config);
+    const dias = config.map((d: DiaConfig) => d.dia).sort((a: number, b: number) => a - b);
+    setAvailableDias(dias);
+    const fechasMap: Record<number, string> = {};
+    for (const d of config) {
+      if (d.fecha) fechasMap[d.dia] = typeof d.fecha === "string" ? d.fecha.split("T")[0] : String(d.fecha);
+    }
+    setFechas(fechasMap);
+    return dias;
+  }, []);
+
   const handleDeleteDia = async (dia: number) => {
     try {
       const res = await fetch(`/api/dias?dia=${dia}`, { method: "DELETE" });
       if (res.ok) {
-        setAvailableDias((prev) => prev.filter((d) => d !== dia));
-        await fetchDiasConfig();
+        const remaining = await reloadDias();
         if (selectedDia === dia) {
-          const remaining = availableDias.filter((d) => d !== dia);
-          setSelectedDia(remaining.length > 0 ? remaining[0] : null);
+          setSelectedDia(remaining && remaining.length > 0 ? remaining[0] : null);
         }
         toast.success(`Dia ${dia} eliminado`);
       } else {
@@ -498,9 +501,22 @@ export default function RegistroPage() {
           })}
           <button
             onClick={() => {
-              setNewDiaNum(availableDias.length > 0 ? Math.max(...availableDias) + 1 : 1);
-              setNewDiaNombre("");
-              setNewDiaFecha("");
+              const nextNum = availableDias.length > 0 ? Math.max(...availableDias) + 1 : 1;
+              setNewDiaNum(nextNum);
+              setNewDiaNombre(`Dia ${nextNum}`);
+              const lastDia = availableDias.length > 0 ? Math.max(...availableDias) : 0;
+              const lastConf = diasConfig.find((d) => d.dia === lastDia);
+              let nextFecha = "";
+              if (lastConf?.fecha) {
+                const d = new Date(lastConf.fecha);
+                d.setDate(d.getDate() + 1);
+                nextFecha = d.toISOString().split("T")[0];
+              } else {
+                const d = new Date();
+                d.setDate(d.getDate() + nextNum - 1);
+                nextFecha = d.toISOString().split("T")[0];
+              }
+              setNewDiaFecha(nextFecha);
               setNewDiaTipo("entrada_salida");
               setShowDiaModal(true);
             }}
