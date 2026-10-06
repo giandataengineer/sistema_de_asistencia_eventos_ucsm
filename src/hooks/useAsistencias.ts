@@ -71,6 +71,23 @@ export function useAsistencias() {
     return { success: true, data };
   }, []);
 
+  const verificarPago = useCallback(
+    async (apellidoPaterno: string, apellidoMaterno?: string | null, nombres?: string | null) => {
+      try {
+        const res = await fetch("/api/participantes/buscar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apellidoPaterno, apellidoMaterno, nombres }),
+        });
+        if (!res.ok) return { found: false, estadoPago: "NO REGISTRADO" };
+        return await res.json();
+      } catch {
+        return { found: false, estadoPago: "ERROR" };
+      }
+    },
+    []
+  );
+
   return {
     data,
     loading,
@@ -79,5 +96,6 @@ export function useAsistencias() {
     registrar,
     eliminar,
     consultarDni,
+    verificarPago,
   };
 }

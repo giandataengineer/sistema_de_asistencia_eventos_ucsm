@@ -21,14 +21,36 @@ import {
   Plus,
   ClipboardList,
   Calendar,
+  Settings,
+  X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 type ScanMode = "camera" | "manual" | "external";
 type TipoRegistro = "entrada" | "salida";
+type TipoAsistenciaDia = "entrada_salida" | "solo_entrada" | "solo_salida";
 
 interface RegistroModule {
   id: number;
   label: string;
+}
+
+interface DiaConfig {
+  dia: number;
+  nombre: string | null;
+  fecha: string | null;
+  tipoAsistencia: TipoAsistenciaDia;
+}
+
+interface PaymentStatus {
+  found: boolean;
+  estadoPago: string;
+  nombreCompleto?: {
+    apellidoPaterno: string;
+    apellidoMaterno: string | null;
+    nombres: string;
+  };
 }
 
 const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -40,7 +62,7 @@ const MODE_TABS: { mode: ScanMode; label: string; icon: React.ComponentType<{ cl
 function formatFechaDia(isoDate: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const dias = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
   const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   return `${dias[date.getDay()]} ${d} ${meses[date.getMonth()]}`;
 }
@@ -56,6 +78,7 @@ export default function RegistroPage() {
   const { usuario } = useAuth();
   const [fechas, setFechas] = useState<Record<number, string>>({});
   const [availableDias, setAvailableDias] = useState<number[]>([]);
+  const [diasConfig, setDiasConfig] = useState<DiaConfig[]>([]);
   const [selectedDia, setSelectedDia] = useState<number | null>(null);
   const [modules, setModules] = useState<RegistroModule[]>([{ id: 1, label: "1° Registro de Asistencia" }]);
   const [activeModuleId, setActiveModuleId] = useState(1);
@@ -68,10 +91,27 @@ export default function RegistroPage() {
   const [successName, setSuccessName] = useState("");
   const [dniLoading, setDniLoading] = useState(false);
   const [lastManualResult, setLastManualResult] = useState<{ nombre: string; success: boolean } | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDiaModal, setShowDiaModal] = useState(false);
+  const [newDiaNum, setNewDiaNum] = useState(1);
+  const [newDiaNombre, setNewDiaNombre] = useState("");
+  const [newDiaFecha, setNewDiaFecha] = useState("");
+  const [newDiaTipo, setNewDiaTipo] = useState<TipoAsistenciaDia>("entrada_salida");
   const processingRef = useRef(false);
   const initializedRef = useRef(false);
 
-  const { data, fetchAsistencias, registrar, eliminar, consultarDni } = useAsistencias();
+  const { data, fetchAsistencias, registrar, eliminar, consultarDni, verificarPago } = useAsistencias();
+
+  const fetchDiasConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/dias");
+      if (res.ok) {
+        const result = await res.json();
+        setDiasConfig(result.dias ?? []);
+      }
+    } catch { /* silent */ }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -79,6 +119,7 @@ export default function RegistroPage() {
         const [metaRes, diaRes] = await Promise.all([
           fetch("/api/asistencias/metadata"),
           fetch("/api/asistencias/dia-actual"),
+          fetchDiasConfig(),
         ]);
 
         const meta = metaRes.ok ? await metaRes.json() : { dias: [] };
@@ -103,7 +144,16 @@ export default function RegistroPage() {
         setAvailableDias([1]);
       }
     })();
-  }, []);
+  }, [fetchDiasConfig]);
+
+  const currentDiaConfig = diasConfig.find((d) => d.dia === selectedDia);
+  const tipoAsistenciaDia: TipoAsistenciaDia = currentDiaConfig?.tipoAsistencia ?? "entrada_salida";
+
+  useEffect(() => {
+    if (selectedDia === null) return;
+    if (tipoAsistenciaDia === "solo_entrada") setTipoRegistro("entrada");
+    else if (tipoAsistenciaDia === "solo_salida") setTipoRegistro("salida");
+  }, [selectedDia, tipoAsistenciaDia]);
 
   useEffect(() => {
     if (selectedDia === null) return;
@@ -117,7 +167,6 @@ export default function RegistroPage() {
         const maxSession = dbSessions.length > 0 ? Math.max(...dbSessions) : 1;
         setModules(buildModules(maxSession));
         setActiveModuleId(1);
-        setTipoRegistro("entrada");
       } catch {
         setModules([{ id: 1, label: "1° Registro de Asistencia" }]);
       }
@@ -140,9 +189,7 @@ export default function RegistroPage() {
             fetchAsistencias(1, undefined, selectedDia, activeModuleId, tipoRegistro);
           }
         }
-      } catch {
-        // silent
-      }
+      } catch { /* silent */ }
     }, 45000);
     return () => clearInterval(interval);
   }, [fetchAsistencias, selectedDia, activeModuleId, tipoRegistro]);
@@ -164,26 +211,58 @@ export default function RegistroPage() {
       return;
     }
     if (selectedDia === null) {
-      toast.warning("Selecciona un día primero");
+      toast.warning("Selecciona un dia primero");
       return;
     }
     const nextNum = modules.length + 1;
     setModules(buildModules(nextNum));
     setActiveModuleId(nextNum);
-    setTipoRegistro("entrada");
+    if (tipoAsistenciaDia === "solo_entrada") setTipoRegistro("entrada");
+    else if (tipoAsistenciaDia === "solo_salida") setTipoRegistro("salida");
+    else setTipoRegistro("entrada");
     toast.success(`${nextNum}° Registro de Asistencia agregado`);
+  };
+
+  const handleCreateDia = async () => {
+    try {
+      const res = await fetch("/api/dias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dia: newDiaNum,
+          nombre: newDiaNombre || `Dia ${newDiaNum}`,
+          fecha: newDiaFecha || null,
+          tipoAsistencia: newDiaTipo,
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Dia ${newDiaNum} creado`);
+        setShowDiaModal(false);
+        if (!availableDias.includes(newDiaNum)) {
+          setAvailableDias((prev) => [...prev, newDiaNum].sort((a, b) => a - b));
+        }
+        await fetchDiasConfig();
+        setSelectedDia(newDiaNum);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Error al crear dia");
+      }
+    } catch {
+      toast.error("Error de conexion");
+    }
   };
 
   const handleDniDetected = useCallback(
     async (dni: string) => {
       if (processingRef.current) return;
       if (selectedDia === null) {
-        toast.warning("Selecciona un día primero");
+        toast.warning("Selecciona un dia primero");
         return;
       }
       processingRef.current = true;
       setDniLoading(true);
       setLastManualResult(null);
+      setPaymentStatus(null);
 
       const tipoLabel = tipoRegistro === "entrada" ? "ENTRADA" : "SALIDA";
 
@@ -200,17 +279,43 @@ export default function RegistroPage() {
         });
 
         if (regResult.success) {
-          toast.success(`${tipoLabel} - DNI ${dni} (Día ${selectedDia}, ${activeModuleId}° Reg)`, { duration: 1200 });
+          toast.success(`${tipoLabel} - DNI ${dni} (Dia ${selectedDia}, ${activeModuleId}° Reg)`, { duration: 1200 });
           setSuccessName(`${tipoLabel} - ${dni}`);
           setShowSuccessModal(true);
           setLastManualResult({ nombre: `DNI ${dni} - ${tipoLabel}`, success: true });
           setTimeout(() => setShowSuccessModal(false), 700);
           debouncedRefresh();
 
-          consultarDni(dni).then((reniecResult) => {
+          // RENIEC lookup + payment verification in parallel
+          consultarDni(dni).then(async (reniecResult) => {
             const patchData = reniecResult.success && reniecResult.data
               ? reniecResult.data
               : { nombres: `DNI ${dni}`, apellidoPaterno: "POR VERIFICAR", apellidoMaterno: "" };
+
+            // Check payment status
+            const pagoResult = await verificarPago(
+              patchData.apellidoPaterno,
+              patchData.apellidoMaterno,
+              patchData.nombres
+            );
+            setPaymentStatus(pagoResult);
+            setShowPaymentModal(true);
+
+            // If participant found with more complete name, use it
+            if (pagoResult.found && pagoResult.nombreCompleto) {
+              const nc = pagoResult.nombreCompleto;
+              const reniecNombres = patchData.nombres || "";
+              const reniecParts = reniecNombres.split(" ").filter(Boolean);
+              const listParts = nc.nombres.split(" ").filter(Boolean);
+
+              // If RENIEC gave fewer name parts, use participant list's full name
+              if (listParts.length > reniecParts.length) {
+                patchData.nombres = nc.nombres;
+              }
+              if (!patchData.apellidoMaterno && nc.apellidoMaterno) {
+                patchData.apellidoMaterno = nc.apellidoMaterno;
+              }
+            }
 
             fetch(`/api/asistencias/${regResult.data.id}`, {
               method: "PATCH",
@@ -221,6 +326,19 @@ export default function RegistroPage() {
         } else if (regResult.duplicado) {
           toast.warning(regResult.error, { duration: 2000 });
           setLastManualResult({ nombre: regResult.error || "Ya registrado", success: false });
+
+          // Still check payment for duplicate scans
+          consultarDni(dni).then(async (reniecResult) => {
+            if (reniecResult.success && reniecResult.data) {
+              const pagoResult = await verificarPago(
+                reniecResult.data.apellidoPaterno,
+                reniecResult.data.apellidoMaterno,
+                reniecResult.data.nombres
+              );
+              setPaymentStatus(pagoResult);
+              setShowPaymentModal(true);
+            }
+          });
         } else {
           toast.error(regResult.error || "Error al registrar");
           setLastManualResult({ nombre: regResult.error || "Error al registrar", success: false });
@@ -233,7 +351,7 @@ export default function RegistroPage() {
         processingRef.current = false;
       }
     },
-    [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId, selectedDia]
+    [consultarDni, registrar, debouncedRefresh, tipoRegistro, activeModuleId, selectedDia, verificarPago]
   );
 
   const handleDelete = async () => {
@@ -263,29 +381,69 @@ export default function RegistroPage() {
 
         <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center">
           <Calendar className="w-12 h-12 text-accent mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-primary mb-2">Selecciona el día del evento</h2>
+          <h2 className="text-lg font-bold text-primary mb-2">Selecciona el dia del evento</h2>
           <p className="text-sm text-muted mb-6">Elige la fecha para registrar asistencia</p>
           <div className="flex flex-wrap justify-center gap-3">
             {availableDias.length === 0 && (
-              <p className="text-sm text-muted">Cargando días disponibles...</p>
+              <p className="text-sm text-muted">Cargando dias disponibles...</p>
             )}
-            {availableDias.map((dia) => (
-              <button
-                key={dia}
-                onClick={() => setSelectedDia(dia)}
-                className="flex flex-col items-center px-6 py-4 rounded-xl border-2 border-accent bg-accent/10 text-primary font-bold hover:bg-accent hover:text-primary-deep transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
-              >
-                <span className="text-lg">Día {dia}</span>
-                {fechas[dia] && (
-                  <span className="text-xs font-medium text-muted mt-1">{formatFechaDia(fechas[dia])}</span>
-                )}
-              </button>
-            ))}
+            {availableDias.map((dia) => {
+              const cfg = diasConfig.find((d) => d.dia === dia);
+              const tipoLabel = cfg?.tipoAsistencia === "solo_entrada" ? "Solo Entrada"
+                : cfg?.tipoAsistencia === "solo_salida" ? "Solo Salida"
+                : "Entrada y Salida";
+              return (
+                <button
+                  key={dia}
+                  onClick={() => setSelectedDia(dia)}
+                  className="flex flex-col items-center px-6 py-4 rounded-xl border-2 border-accent bg-accent/10 text-primary font-bold hover:bg-accent hover:text-primary-deep transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <span className="text-lg">Dia {dia}</span>
+                  {cfg?.nombre && <span className="text-xs font-medium text-muted mt-0.5">{cfg.nombre}</span>}
+                  {fechas[dia] && (
+                    <span className="text-xs font-medium text-muted mt-0.5">{formatFechaDia(fechas[dia])}</span>
+                  )}
+                  <span className="text-[0.6rem] text-accent mt-1 bg-accent/20 px-2 py-0.5 rounded-full">{tipoLabel}</span>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => {
+                setNewDiaNum(availableDias.length > 0 ? Math.max(...availableDias) + 1 : 1);
+                setNewDiaNombre("");
+                setNewDiaFecha("");
+                setNewDiaTipo("entrada_salida");
+                setShowDiaModal(true);
+              }}
+              className="flex flex-col items-center justify-center px-6 py-4 rounded-xl border-2 border-dashed border-border text-muted hover:border-accent hover:text-accent transition-all"
+            >
+              <Plus className="w-8 h-8 mb-1" />
+              <span className="text-sm font-bold">Nuevo Dia</span>
+            </button>
           </div>
         </div>
+
+        {showDiaModal && (
+          <DiaConfigModal
+            diaNum={newDiaNum}
+            nombre={newDiaNombre}
+            fecha={newDiaFecha}
+            tipo={newDiaTipo}
+            onDiaNumChange={setNewDiaNum}
+            onNombreChange={setNewDiaNombre}
+            onFechaChange={setNewDiaFecha}
+            onTipoChange={setNewDiaTipo}
+            onConfirm={handleCreateDia}
+            onCancel={() => setShowDiaModal(false)}
+          />
+        )}
       </div>
     );
   }
+
+  const tipoAsistenciaLabel = tipoAsistenciaDia === "solo_entrada" ? "Solo Entrada"
+    : tipoAsistenciaDia === "solo_salida" ? "Solo Salida"
+    : "Entrada y Salida";
 
   return (
     <div>
@@ -320,7 +478,7 @@ export default function RegistroPage() {
                   : "text-muted hover:text-ink hover:bg-surface-alt"
               }`}
             >
-              <span>Día {dia}</span>
+              <span>Dia {dia}</span>
               {fechas[dia] && (
                 <span className={`text-[0.6rem] font-medium mt-0.5 ${selectedDia === dia ? "text-accent/80" : "text-muted"}`}>
                   {formatFechaDia(fechas[dia])}
@@ -328,7 +486,20 @@ export default function RegistroPage() {
               )}
             </button>
           ))}
+          <button
+            onClick={() => {
+              setNewDiaNum(availableDias.length > 0 ? Math.max(...availableDias) + 1 : 1);
+              setNewDiaNombre("");
+              setNewDiaFecha("");
+              setNewDiaTipo("entrada_salida");
+              setShowDiaModal(true);
+            }}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-accent transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         </div>
+        <span className="text-xs text-muted bg-surface-alt px-2 py-1 rounded-lg">{tipoAsistenciaLabel}</span>
       </div>
 
       {/* Session modules selector */}
@@ -337,7 +508,12 @@ export default function RegistroPage() {
           {modules.map((mod) => (
             <button
               key={mod.id}
-              onClick={() => { setActiveModuleId(mod.id); setTipoRegistro("entrada"); }}
+              onClick={() => {
+                setActiveModuleId(mod.id);
+                if (tipoAsistenciaDia === "solo_entrada") setTipoRegistro("entrada");
+                else if (tipoAsistenciaDia === "solo_salida") setTipoRegistro("salida");
+                else setTipoRegistro("entrada");
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
                 activeModuleId === mod.id
                   ? "bg-primary text-accent border-primary shadow-lg scale-105"
@@ -365,35 +541,46 @@ export default function RegistroPage() {
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold text-primary">{activeModule?.label}</h2>
           <p className="text-xs text-muted">
-            Día {selectedDia}{selectedFecha ? ` — ${selectedFecha}` : ""}
+            Dia {selectedDia}{selectedFecha ? ` - ${selectedFecha}` : ""} | {tipoAsistenciaLabel}
           </p>
         </div>
 
-        {/* Entrada / Salida toggle */}
-        <div className="flex items-center gap-2 p-1 bg-surface-alt rounded-lg mb-4">
-          <button
-            onClick={() => setTipoRegistro("entrada")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
-              tipoRegistro === "entrada"
-                ? "bg-green-600 text-white shadow-md"
-                : "text-muted hover:text-ink"
-            }`}
-          >
-            <LogIn className="w-5 h-5" />
-            ENTRADA
-          </button>
-          <button
-            onClick={() => setTipoRegistro("salida")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
-              tipoRegistro === "salida"
-                ? "bg-orange-500 text-white shadow-md"
-                : "text-muted hover:text-ink"
-            }`}
-          >
-            <LogOut className="w-5 h-5" />
-            SALIDA
-          </button>
-        </div>
+        {/* Entrada / Salida toggle - only show both when tipo is entrada_salida */}
+        {tipoAsistenciaDia === "entrada_salida" ? (
+          <div className="flex items-center gap-2 p-1 bg-surface-alt rounded-lg mb-4">
+            <button
+              onClick={() => setTipoRegistro("entrada")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
+                tipoRegistro === "entrada"
+                  ? "bg-green-600 text-white shadow-md"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              <LogIn className="w-5 h-5" />
+              ENTRADA
+            </button>
+            <button
+              onClick={() => setTipoRegistro("salida")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${
+                tipoRegistro === "salida"
+                  ? "bg-orange-500 text-white shadow-md"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              <LogOut className="w-5 h-5" />
+              SALIDA
+            </button>
+          </div>
+        ) : (
+          <div className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold mb-4 ${
+            tipoAsistenciaDia === "solo_entrada"
+              ? "bg-green-600 text-white"
+              : "bg-orange-500 text-white"
+          }`}>
+            {tipoAsistenciaDia === "solo_entrada" ? <LogIn className="w-5 h-5" /> : <LogOut className="w-5 h-5" />}
+            {tipoAsistenciaDia === "solo_entrada" ? "SOLO ENTRADA" : "SOLO SALIDA"}
+          </div>
+        )}
 
         {/* Mode tabs */}
         <div className="flex items-center gap-1 p-1 bg-surface-alt rounded-lg mb-4">
@@ -459,7 +646,7 @@ export default function RegistroPage() {
           <span className="flex items-center gap-2">
             {tipoRegistro === "entrada" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
             <span>
-              Día {selectedDia}{selectedFecha ? ` (${selectedFecha})` : ""} — {activeModule?.label} — {tipoRegistro === "entrada" ? "Entradas" : "Salidas"}
+              Dia {selectedDia}{selectedFecha ? ` (${selectedFecha})` : ""} - {activeModule?.label} - {tipoRegistro === "entrada" ? "Entradas" : "Salidas"}
             </span>
           </span>
           <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{data?.total ?? 0}</span>
@@ -479,6 +666,7 @@ export default function RegistroPage() {
       )}
       {deleteTarget && <DeleteModal nombre={deleteTarget.nombre} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />}
 
+      {/* Success modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-accent/20 backdrop-blur-sm animate-in fade-in duration-300">
           <div className={`${tipoRegistro === "salida" ? "bg-orange-500/90" : "bg-primary/90"} p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-50 duration-300 border border-accent/30`}>
@@ -497,6 +685,185 @@ export default function RegistroPage() {
           </div>
         </div>
       )}
+
+      {/* Payment status modal */}
+      {showPaymentModal && paymentStatus && (
+        <PaymentStatusModal
+          status={paymentStatus}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
+
+      {/* Day creation modal */}
+      {showDiaModal && (
+        <DiaConfigModal
+          diaNum={newDiaNum}
+          nombre={newDiaNombre}
+          fecha={newDiaFecha}
+          tipo={newDiaTipo}
+          onDiaNumChange={setNewDiaNum}
+          onNombreChange={setNewDiaNombre}
+          onFechaChange={setNewDiaFecha}
+          onTipoChange={setNewDiaTipo}
+          onConfirm={handleCreateDia}
+          onCancel={() => setShowDiaModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentStatusModal({ status, onClose }: { status: PaymentStatus; onClose: () => void }) {
+  const isPaid = status.estadoPago === "FINALIZADO";
+  const isNotRegistered = !status.found;
+
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div
+        className={`relative w-[90vw] max-w-sm p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-75 duration-300 ${
+          isPaid ? "bg-green-500" : isNotRegistered ? "bg-gray-500" : "bg-red-500"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-3 right-3 text-white/70 hover:text-white">
+          <X className="w-6 h-6" />
+        </button>
+
+        <div className={`w-20 h-20 rounded-full bg-white/20 flex items-center justify-center`}>
+          {isPaid ? (
+            <CheckCircle2 className="w-12 h-12 text-white" />
+          ) : (
+            <AlertCircle className="w-12 h-12 text-white" />
+          )}
+        </div>
+
+        <h2 className="text-2xl font-black text-white text-center uppercase tracking-wider">
+          {isPaid ? "PAGO REALIZADO" : isNotRegistered ? "NO REGISTRADO" : "PENDIENTE DE PAGO"}
+        </h2>
+
+        {status.nombreCompleto && (
+          <p className="text-white text-center text-sm font-medium">
+            {status.nombreCompleto.nombres} {status.nombreCompleto.apellidoPaterno} {status.nombreCompleto.apellidoMaterno || ""}
+          </p>
+        )}
+
+        <div className={`mt-2 px-4 py-2 rounded-full text-sm font-bold ${
+          isPaid ? "bg-white/20 text-white" : "bg-white/20 text-white"
+        }`}>
+          {isPaid ? "Acceso autorizado" : isNotRegistered ? "No encontrado en la lista" : "Verificar con organizacion"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiaConfigModal({
+  diaNum, nombre, fecha, tipo,
+  onDiaNumChange, onNombreChange, onFechaChange, onTipoChange,
+  onConfirm, onCancel,
+}: {
+  diaNum: number;
+  nombre: string;
+  fecha: string;
+  tipo: TipoAsistenciaDia;
+  onDiaNumChange: (n: number) => void;
+  onNombreChange: (s: string) => void;
+  onFechaChange: (s: string) => void;
+  onTipoChange: (t: TipoAsistenciaDia) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-md p-6 animate-in zoom-in-75 duration-300">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+            <Settings className="w-5 h-5 text-accent" />
+            Configurar Nuevo Dia
+          </h2>
+          <button onClick={onCancel} className="text-muted hover:text-ink">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">Numero de Dia</label>
+            <input
+              type="number"
+              min={1}
+              value={diaNum}
+              onChange={(e) => onDiaNumChange(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">Nombre (opcional)</label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => onNombreChange(e.target.value)}
+              placeholder={`Dia ${diaNum}`}
+              className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">Fecha (opcional)</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => onFechaChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-ink mb-2">Tipo de Registro de Asistencia</label>
+            <div className="space-y-2">
+              {([
+                { value: "entrada_salida", label: "Entrada y Salida", desc: "Registrar tanto entrada como salida", color: "border-blue-400 bg-blue-50" },
+                { value: "solo_entrada", label: "Solo Entrada", desc: "Solo registrar entradas", color: "border-green-400 bg-green-50" },
+                { value: "solo_salida", label: "Solo Salida", desc: "Solo registrar salidas", color: "border-orange-400 bg-orange-50" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onTipoChange(opt.value)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                    tipo === opt.value
+                      ? `${opt.color} border-opacity-100 shadow-sm`
+                      : "border-border bg-white hover:bg-surface-alt"
+                  }`}
+                >
+                  <span className="text-sm font-bold text-primary">{opt.label}</span>
+                  <span className="block text-xs text-muted mt-0.5">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-muted hover:bg-surface-alt transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-accent text-sm font-bold hover:bg-primary/90 transition-all shadow-sm"
+          >
+            Crear Dia {diaNum}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

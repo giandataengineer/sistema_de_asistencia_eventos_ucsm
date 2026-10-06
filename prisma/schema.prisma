@@ -25,19 +25,50 @@ model Usuario {
 
 model Evento {
 
-  id          String       @id @default(uuid())
-  nombre      String       @db.VarChar(200)
-  descripcion String?      @db.Text
-  fechaInicio DateTime     @map("fecha_inicio") @db.Date
-  fechaFin    DateTime?    @map("fecha_fin") @db.Date
-  lugar       String?      @db.VarChar(200)
-  activo      Boolean      @default(true)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  usuarios    Usuario[]
-  asistencias Asistencia[]
+  id            String         @id @default(uuid())
+  nombre        String         @db.VarChar(200)
+  descripcion   String?        @db.Text
+  fechaInicio   DateTime       @map("fecha_inicio") @db.Date
+  fechaFin      DateTime?      @map("fecha_fin") @db.Date
+  lugar         String?        @db.VarChar(200)
+  activo        Boolean        @default(true)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  usuarios      Usuario[]
+  asistencias   Asistencia[]
+  participantes Participante[]
+  diasEvento    DiaEvento[]
 
   @@map("eventos")
+}
+
+model Participante {
+  id               String  @id @default(uuid())
+  apellidoPaterno  String  @map("apellido_paterno") @db.VarChar(100)
+  apellidoMaterno  String? @map("apellido_materno") @db.VarChar(100)
+  nombres          String  @db.VarChar(150)
+  tipoParticipante String  @map("tipo_participante") @db.VarChar(50)
+  estadoPago       String  @map("estado_pago") @db.VarChar(30)
+  eventoId         String  @map("evento_id")
+  evento           Evento  @relation(fields: [eventoId], references: [id])
+
+  @@index([eventoId])
+  @@index([apellidoPaterno, apellidoMaterno])
+  @@map("participantes")
+}
+
+model DiaEvento {
+  id             String  @id @default(uuid())
+  dia            Int
+  nombre         String? @db.VarChar(100)
+  fecha          DateTime? @db.Date
+  tipoAsistencia String  @default("entrada_salida") @map("tipo_asistencia") @db.VarChar(20)
+  eventoId       String  @map("evento_id")
+  evento         Evento  @relation(fields: [eventoId], references: [id])
+
+  @@unique([eventoId, dia])
+  @@index([eventoId])
+  @@map("dias_evento")
 }
 
 model Asistencia {

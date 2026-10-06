@@ -3,6 +3,9 @@ const RENIEC_API_V2 = "https://api.apis.net.pe/v2/reniec/dni";
 const ELDNI_URL = "https://eldni.com/pe/buscar-por-dni";
 const APIPERU_URL = "https://apiperu.dev/api/dni";
 const APIPERU_TOKEN = process.env.APIPERU_TOKEN ?? "";
+const DNIRUC_URL = "https://dniruc.apisperu.com/api/v1/dni";
+const DNIRUC_TOKEN = process.env.DNIRUC_TOKEN ?? "";
+const CONSULTADNI_URL = "https://api.consultadni.com/api/dni";
 
 interface DniData {
   nombres: string;
@@ -144,6 +147,57 @@ async function tryApiPeruDev(dni: string): Promise<DniData | null> {
   }
 }
 
+async function tryDniRuc(dni: string): Promise<DniData | null> {
+  if (!DNIRUC_TOKEN) return null;
+  try {
+    const res = await fetch(`${DNIRUC_URL}/${dni}?token=${DNIRUC_TOKEN}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.nombres) {
+      return {
+        nombres: json.nombres || "",
+        apellidoPaterno: json.apellidoPaterno || "",
+        apellidoMaterno: json.apellidoMaterno || "",
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryConsultaDni(dni: string): Promise<DniData | null> {
+  try {
+    const res = await fetch(`${CONSULTADNI_URL}/${dni}`, {
+      signal: AbortSignal.timeout(6000),
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.nombres) {
+      return {
+        nombres: json.nombres || "",
+        apellidoPaterno: json.apellidoPaterno || json.apellido_paterno || "",
+        apellidoMaterno: json.apellidoMaterno || json.apellido_materno || "",
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Race two providers - return the first successful result
+async function raceProviders(fns: (() => Promise<DniData | null>)[]): Promise<DniData | null> {
+  const results = await Promise.allSettled(fns.map((fn) => fn()));
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) return r.value;
+  }
+  return null;
+}
+
 export const reniecService = {
   async consultarDni(dni: string): Promise<{
     success: boolean;
@@ -159,29 +213,32 @@ export const reniecService = {
       return { success: true, data: cached.data };
     }
 
-    // 1. eldni.com (base de datos mas amplia)
-    let data = await tryElDni(dni);
+    // Wave 1: race eldni + apis.net.pe v1 in parallel
+    let data = await raceProviders([
+      () => tryElDni(dni),
+      () => tryApiFetch(`${RENIEC_API_V1}?numero=${dni}`),
+    ]);
 
-    // 2. API v1 fallback
+    // Wave 2: race apis.net.pe v2 + dniruc in parallel
     if (!data) {
-      data = await tryApiFetch(`${RENIEC_API_V1}?numero=${dni}`);
+      data = await raceProviders([
+        () => tryApiFetch(`${RENIEC_API_V2}?numero=${dni}`),
+        () => tryDniRuc(dni),
+      ]);
     }
 
-    // 3. API v2 fallback
+    // Wave 3: race apiperu.dev + consultadni in parallel
     if (!data) {
-      await delay(500);
-      data = await tryApiFetch(`${RENIEC_API_V2}?numero=${dni}`);
+      data = await raceProviders([
+        () => tryApiPeruDev(dni),
+        () => tryConsultaDni(dni),
+      ]);
     }
 
-    // 4. apiperu.dev (requiere token verificado)
-    if (!data && APIPERU_TOKEN) {
-      data = await tryApiPeruDev(dni);
-    }
-
-    // 5. Retry eldni con nueva sesion
+    // Wave 4: retry eldni with fresh session
     if (!data) {
       elDniSession = null;
-      await delay(1000);
+      await delay(500);
       data = await tryElDni(dni);
     }
 
