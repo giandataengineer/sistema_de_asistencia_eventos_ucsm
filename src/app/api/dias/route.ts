@@ -59,7 +59,8 @@ export async function DELETE(req: NextRequest) {
   if (isGuardError(guard)) return guard;
 
   try {
-    const { dia } = await req.json();
+    const { searchParams } = new URL(req.url);
+    const dia = searchParams.get("dia");
     if (!dia) {
       return NextResponse.json({ error: "dia requerido" }, { status: 400 });
     }

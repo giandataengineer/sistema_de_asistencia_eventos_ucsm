@@ -335,11 +335,7 @@ export default function RegistroPage() {
 
   const handleDeleteDia = async (dia: number) => {
     try {
-      const res = await fetch("/api/dias", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dia }),
-      });
+      const res = await fetch(`/api/dias?dia=${dia}`, { method: "DELETE" });
       if (res.ok) {
         setAvailableDias((prev) => prev.filter((d) => d !== dia));
         await fetchDiasConfig();
