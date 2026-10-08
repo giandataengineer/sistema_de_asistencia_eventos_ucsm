@@ -192,7 +192,7 @@ export const asistenciaRepository = {
         orderBy: { sesion: "asc" },
       }),
       prisma.$queryRaw`
-        SELECT EXTRACT(HOUR FROM fecha_registro) AS hora, COUNT(*)::int AS total
+        SELECT EXTRACT(HOUR FROM (fecha_registro AT TIME ZONE 'UTC') AT TIME ZONE 'America/Lima') AS hora, COUNT(*)::int AS total
         FROM asistencias
         WHERE evento_id = ${eventoId} AND eliminado = false AND tipo = 'entrada'
         GROUP BY hora ORDER BY hora
