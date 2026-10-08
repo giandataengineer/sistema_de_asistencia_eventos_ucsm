@@ -146,14 +146,18 @@ export default function Sidebar() {
         </div>
 
         {usuario && (
-          <div className="px-5 py-3 border-t border-white/5 text-xs text-white/40 relative z-[1]">
-            {usuario.nombre}
+          <div className="px-5 py-3 border-t border-white/5 relative z-[1] leading-snug">
+            <p className="text-[0.6rem] uppercase tracking-[0.18em] text-accent/70 font-semibold">Administrador</p>
+            <p className="text-xs text-white/80 font-medium">
+              Congreso de la Escuela Profesional de Ingeniería Industrial
+            </p>
           </div>
         )}
 
-        <div className="px-5 pb-4 pt-1 text-center relative z-[1]">
-          <p className="text-[0.65rem] text-white/30 tracking-wider">
-            Desarrollado por Gian Cruz
+        <div className="mx-4 mb-3 px-4 py-3 text-center rounded-xl bg-accent/[0.06] border border-accent/15 relative z-[1]">
+          <p className="text-[0.6rem] uppercase tracking-[0.2em] text-white/50">Desarrollado por</p>
+          <p className="mt-0.5 text-lg font-extrabold tracking-tight text-white">
+            Gian <span className="text-accent">Cruz</span>
           </p>
         </div>
 

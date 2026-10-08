@@ -162,8 +162,9 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-white/40 tracking-wide font-medium">
-            Desarrollado por: Gian Cruz
+          <p className="text-[0.65rem] uppercase tracking-[0.2em] text-white/40">Desarrollado por</p>
+          <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">
+            Gian <span className="text-accent">Cruz</span>
           </p>
         </div>
       </div>

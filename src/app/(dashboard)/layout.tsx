@@ -33,15 +33,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="sticky top-0 z-30 flex items-center px-5 py-3
           bg-primary text-white border-b-2 border-accent">
           <div className="flex-1" />
-          <div className="text-sm text-white/70">
-            {usuario.nombre}
+          <div className="text-right leading-tight">
+            <p className="text-[0.65rem] uppercase tracking-[0.18em] text-accent/80 font-semibold">Administrador</p>
+            <p className="text-sm font-semibold text-white">
+              Congreso de la Escuela Profesional de Ingeniería Industrial
+            </p>
           </div>
         </div>
         <div className="p-4 lg:p-6 animate-fadeIn">
           {children}
         </div>
-        <footer className="py-5 text-center text-sm text-muted font-medium border-t border-border mt-8">
-          Desarrollado por: Gian Cruz
+        <footer className="py-6 text-center border-t border-border mt-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Desarrollado por</p>
+          <p className="mt-1 text-2xl font-extrabold tracking-tight text-primary">
+            Gian <span className="text-accent-dim">Cruz</span>
+          </p>
         </footer>
       </main>
     </div>
